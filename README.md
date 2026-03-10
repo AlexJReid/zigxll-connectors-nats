@@ -4,6 +4,8 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 > **Proof of concept.** This is an experimental demo of what's possible with ZigXLL's RTD support. It connects to a hardcoded localhost NATS server (`127.0.0.1:4222`) with no authentication, TLS, or reconnect handling. Not intended for production use.
 
+[![Demo video](https://img.youtube.com/vi/sWCvkbp4RcA/maxresdefault.jpg)](https://youtu.be/sWCvkbp4RcA)
+
 ## Why
 
 - **Single small binary** (~370KB `.xll` file), nothing to install. Just open it in Excel.
