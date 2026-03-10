@@ -100,6 +100,20 @@ Key implementation details:
 4. You will need to unblock it. More info: [Excel is blocking untrusted XLL add-ins](https://support.microsoft.com/en-gb/topic/excel-is-blocking-untrusted-xll-add-ins-by-default-1e3752e2-1177-4444-a807-7b700266a6fb)
 5. Double-click `zigxll-connectors-nats.xll` to load it into Excel
 
+## Roadmap
+
+This is a proof of concept. The following are areas for future development:
+
+- **Authentication:** support for NATS token, user/password, and NKey/credentials-based auth
+- **TLS:** encrypted connections to NATS servers
+- **Configurable server addresses:** expose a subset of nats.c connection options instead of hardcoded `127.0.0.1:4222`
+- **JetStream:** subscribe to JetStream consumers for durable, replay-capable streams with at-least-once delivery
+- **Last value population:** populate cells with the most recent value on subscribe, so sheets aren't empty until the next publish
+- **Lightweight transforms:** simple "out of calc cycle" transformations on received messages, e.g. JSON field extraction, numeric parsing, without requiring VBA or nested formulas
+- **Debouncing/windowing:** reduce unnecessary recalculations, e.g. round to 3 decimal places and only update the cell if the rounded value differs
+- **Publish support:** `=NATS.PUB("subject", value)` to publish messages back to NATS from Excel
+- **Reconnect handling:** graceful reconnection with backoff when the NATS server is unavailable or restarts
+
 ## License
 
 MIT. See [LICENSE](LICENSE) for details.
