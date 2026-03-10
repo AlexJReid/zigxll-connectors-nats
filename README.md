@@ -2,7 +2,9 @@
 
 A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigxll). Subscribes to NATS subjects and streams published messages into Excel cells via RTD.
 
-> **Proof of concept.** This is an experimental demo of what's possible with ZigXLL's RTD support. It connects to a hardcoded localhost NATS server (`127.0.0.1:4222`) with no authentication, TLS, or reconnect handling. Not intended for production use.
+[Introductory blog post](https://alexjreid.dev/posts/zigxll/)
+
+> **Proof of concept.** This is an experimental demo of what's possible with ZigXLL's RTD support. It connects to a hardcoded localhost NATS server (`127.0.0.1:4222`) with no authentication, TLS, or reconnect handling. Not intended for production use yet.
 
 [![Demo video](https://img.youtube.com/vi/sWCvkbp4RcA/maxresdefault.jpg)](https://youtu.be/sWCvkbp4RcA)
 
@@ -137,4 +139,5 @@ This is a proof of concept. The following are areas for future development:
 MIT. See [LICENSE](LICENSE) for details.
 
 This project uses [nats.c](https://github.com/nats-io/nats.c) (Apache 2.0) and [ZigXLL](https://github.com/AlexJReid/zigxll) (MIT). See [NOTICE](NOTICE) for attribution.
+
 
