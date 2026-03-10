@@ -83,6 +83,22 @@ RTD servers are registered automatically when the XLL is loaded into Excel (writ
 | Function | Description |
 |----------|-------------|
 | `=NATS.SUB("subject")` | Subscribe to a NATS subject (RTD wrapper) |
+| `=NATS.SUB("subject", "type")` | Subscribe with a type hint (see below) |
+
+### Type hints
+
+The optional second argument to `NATS.SUB` controls how the received payload is interpreted:
+
+| Usage | Behavior |
+|---|---|
+| `=NATS.SUB("prices.BTC")` | Auto: duck-types — tries bool, int, float, falls back to string |
+| `=NATS.SUB("prices.BTC", "number")` | Forces numeric coercion, `#VALUE!` if not parseable |
+| `=NATS.SUB("flags.active", "bool")` | Forces bool (`"true"`/`"false"`), `#VALUE!` otherwise |
+| `=NATS.SUB("data.raw", "string")` | Always string, no coercion |
+| `=NATS.SUB("ticker.AAPL", "$.price")` | Parses JSON payload, extracts `price` field, type from JSON |
+| `=NATS.SUB("ticker.AAPL", "$.quote.last")` | Nested dot-path: `{"quote":{"last":142.5}}` → `142.5` as double |
+
+When omitted, the default is `auto` — values that look like numbers or booleans are returned as native Excel types, enabling direct use in formulas and charts without manual conversion.
 
 ## Architecture
 
@@ -111,7 +127,7 @@ This is a proof of concept. The following are areas for future development:
 - **Configurable server addresses:** expose a subset of nats.c connection options instead of hardcoded `127.0.0.1:4222`
 - **JetStream:** subscribe to JetStream consumers for durable, replay-capable streams with at-least-once delivery
 - **Last value population:** populate cells with the most recent value on subscribe, so sheets aren't empty until the next publish
-- **Lightweight transforms:** simple "out of calc cycle" transformations on received messages, e.g. JSON field extraction, numeric parsing, without requiring VBA or nested formulas
+- **~~Lightweight transforms~~:** ✅ type hints and JSON dot-path extraction are now supported via the second argument to `NATS.SUB`
 - **Debouncing/windowing:** reduce unnecessary recalculations, e.g. round to 3 decimal places and only update the cell if the rounded value differs
 - **Publish support:** `=NATS.PUB("subject", value)` to publish messages back to NATS from Excel
 - **Reconnect handling:** graceful reconnection with backoff when the NATS server is unavailable or restarts

@@ -11,6 +11,7 @@ const std = @import("std");
 const xll = @import("xll");
 const rtd = xll.rtd;
 const nats = @cImport(@cInclude("nats.h"));
+const vi = @import("value_interp.zig");
 const win = @cImport({
     @cDefine("WIN32_LEAN_AND_MEAN", "1");
     @cInclude("windows.h");
@@ -99,6 +100,8 @@ fn testThreadProc(_: ?*anyopaque) callconv(.c) u32 {
     return 0;
 }
 
+const TypeHint = vi.TypeHint;
+
 const NatsHandler = struct {
     nc: ?*nats.natsConnection = null,
     ctx: ?*rtd.RtdContext = null,
@@ -107,6 +110,8 @@ const NatsHandler = struct {
     subs: std.AutoHashMap(i32, *nats.natsSubscription) = std.AutoHashMap(i32, *nats.natsSubscription).init(allocator),
     // topic_id -> latest payload (owned, empty slice = no value yet)
     values: std.AutoHashMap(i32, []const u8) = std.AutoHashMap(i32, []const u8).init(allocator),
+    // topic_id -> type hint for value interpretation
+    type_hints: std.AutoHashMap(i32, TypeHint) = std.AutoHashMap(i32, TypeHint).init(allocator),
     // subject -> topic_id (for routing incoming messages)
     subject_map: std.StringHashMap(i32) = std.StringHashMap(i32).init(allocator),
     mu: std.Thread.Mutex = .{},
@@ -168,6 +173,10 @@ const NatsHandler = struct {
         if (sub) |s| self.subs.put(topic_id, s) catch {};
         self.values.put(topic_id, &.{}) catch {};
 
+        // Parse type hint from second topic string (if present)
+        const hint = vi.parseTypeHint(entry.strings);
+        self.type_hints.put(topic_id, hint) catch {};
+
         const subj_copy = allocator.dupe(u8, subject) catch return;
         self.subject_map.put(subj_copy, topic_id) catch {
             allocator.free(subj_copy);
@@ -186,6 +195,7 @@ const NatsHandler = struct {
         if (self.values.fetchRemove(topic_id)) |kv| {
             if (kv.value.len > 0) allocator.free(kv.value);
         }
+        _ = self.type_hints.remove(topic_id);
 
         // Remove from subject_map
         var to_remove: ?[]const u8 = null;
@@ -210,14 +220,11 @@ const NatsHandler = struct {
         self.mu.lock();
         defer self.mu.unlock();
 
-        if (self.values.get(topic_id)) |v| {
-            if (v.len > 0) {
-                const utf16 = std.unicode.utf8ToUtf16LeAlloc(self.refresh_arena.allocator(), v) catch return rtd.RtdValue.na;
-                return .{ .string = utf16 };
-            }
-        }
-        // No value received yet - show #N/A until first message arrives
-        return rtd.RtdValue.na;
+        const v = self.values.get(topic_id) orelse return rtd.RtdValue.na;
+        if (v.len == 0) return rtd.RtdValue.na;
+
+        const hint = self.type_hints.get(topic_id) orelse TypeHint{};
+        return toRtdValue(vi.interpretValue(v, hint, self.refresh_arena.allocator()));
     }
 
     pub fn onTerminate(self: *NatsHandler, _: *rtd.RtdContext) void {
@@ -240,6 +247,8 @@ const NatsHandler = struct {
             nats.natsSubscription_Destroy(entry.value_ptr.*);
         }
         self.subs.deinit();
+
+        self.type_hints.deinit();
 
         // Free stored values
         rtd.debugLog("NATS onTerminate: freeing {d} stored values", .{self.values.count()});
@@ -319,6 +328,19 @@ const NatsHandler = struct {
         }
     }
 };
+
+/// Map platform-neutral vi.Value to the xll rtd.RtdValue union.
+fn toRtdValue(v: vi.Value) rtd.RtdValue {
+    return switch (v) {
+        .int => |i| .{ .int = i },
+        .double => |f| .{ .double = f },
+        .string => |s| .{ .string = s },
+        .boolean => |b| .{ .boolean = b },
+        .err => |code| .{ .err = @bitCast(code) },
+        .empty => .empty,
+        .na => rtd.RtdValue.na,
+    };
+}
 
 pub const rtd_config: rtd.RtdConfig = .{
     .clsid = rtd.guid("A1B2C3D4-E5F6-7890-ABCD-EF0123456789"),
