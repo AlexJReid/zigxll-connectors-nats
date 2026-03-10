@@ -3,8 +3,14 @@
 A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigxll). Subscribes to NATS subjects and streams published messages into Excel cells via RTD.
 
 > **Proof of concept.** This is an experimental demo of what's possible with ZigXLL's RTD support. It connects to a hardcoded localhost NATS server (`127.0.0.1:4222`) with no authentication, TLS, or reconnect handling. Not intended for production use.
->
-> That said, the implementation should be capable of Mega Volume(tm) - arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free-ish handoff from the nats.c thread pool. Feel free to benchmark independently.
+
+## Why
+
+- **Single small binary** (~370KB `.xll` file), nothing to install. Just open it in Excel.
+- **No .NET, no VSTO, no COM boilerplate.** The RTD server registers itself to `HKCU` on load, no admin rights needed.
+- **Custom Excel functions** like `=NATS.SUB("prices.gbp")` so users never need to think about raw `=RTD(...)` syntax.
+- **Built on [nats.c](https://github.com/nats-io/nats.c)**, a mature, battle-tested NATS client. Not a toy reimplementation.
+- **Designed for throughput.** Arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free handoff from the nats.c thread pool to Excel's RTD polling.
 
 ## Usage in Excel
 
@@ -67,7 +73,6 @@ The XLL will be output to `zig-out/lib/zigxll-connectors-nats.xll`.
 | ProgID | CLSID | Description |
 |--------|-------|-------------|
 | `zigxll.connectors.nats` | `{A1B2C3D4-E5F6-7890-ABCD-EF0123456789}` | Subscribe to NATS subjects |
-| `zigxll.connectors.timer` | `{B2C3D4E5-F6A7-8901-2345-6789ABCDEF01}` | Timer (ticks every ~2s) |
 
 RTD servers are registered automatically when the XLL is loaded into Excel (writes to `HKCU\Software\Classes`, no admin needed).
 
@@ -76,7 +81,6 @@ RTD servers are registered automatically when the XLL is loaded into Excel (writ
 | Function | Description |
 |----------|-------------|
 | `=NATS.SUB("subject")` | Subscribe to a NATS subject (RTD wrapper) |
-| `=TIMER()` | Live ticking counter demo |
 
 ## Architecture
 

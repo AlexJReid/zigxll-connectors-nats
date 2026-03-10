@@ -5,6 +5,5 @@ pub const function_modules = .{
 };
 
 pub const rtd_servers = .{
-    @import("timer_rtd.zig"),
     @import("nats_rtd.zig"),
 };
