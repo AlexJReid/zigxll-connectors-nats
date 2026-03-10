@@ -94,7 +94,7 @@ Key implementation details:
 
 ## Try out the pre-built XLL
 
-1. Go to the [Actions tab](../../actions) and click on the latest successful workflow run
+1. Download the latest release (Windows only)
 2. Scroll down to the very bottom and download the **zigxll-connectors-nats** artifact
 3. Extract the XLL file from the zip to a safe location -desktop works
 4. You will need to unblock it. More info: [Excel is blocking untrusted XLL add-ins](https://support.microsoft.com/en-gb/topic/excel-is-blocking-untrusted-xll-add-ins-by-default-1e3752e2-1177-4444-a807-7b700266a6fb)
@@ -105,3 +105,4 @@ Key implementation details:
 MIT. See [LICENSE](LICENSE) for details.
 
 This project uses [nats.c](https://github.com/nats-io/nats.c) (Apache 2.0) and [ZigXLL](https://github.com/AlexJReid/zigxll) (MIT). See [NOTICE](NOTICE) for attribution.
+
