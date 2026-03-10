@@ -49,7 +49,6 @@ Wrapper functions (`NATS.SUB`, `TIMER`) that call `xll.rtd_call.subscribe()` so 
 
 ### C interop
 
-- **`src/msvc_stubs.c`** — Stubs for MSVC CRT init symbols (`__vcrt_initialize`, `__acrt_initialize`, etc.) that are safe to no-op because Excel's host process already has the CRT initialized.
 - **nats.c integration** — Compiled as static C sources directly in `build.zig` (not as a separate library). Zig code uses `@cImport(@cInclude("nats.h"))`. Key flags: `-D_REENTRANT -DNATS_STATIC`. No TLS, no streaming.
 
 ### Threading model

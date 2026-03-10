@@ -71,12 +71,6 @@ pub fn build(b: *std.Build) void {
         .files = nats_win_sources,
         .flags = nats_c_flags,
     });
-    // MSVC CRT stubs (safe in XLL context — Excel already initialized the CRT)
-    xll.addCSourceFiles(.{
-        .root = b.path("src"),
-        .files = &.{"msvc_stubs.c"},
-    });
-
     // Include paths for nats.c internal headers
     xll.addIncludePath(nats_src);
     xll.addIncludePath(b.path("vendor/nats.c/src/include"));
