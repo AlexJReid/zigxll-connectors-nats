@@ -1,0 +1,17 @@
+.{
+    .name = .zigxll_connectors_nats,
+    .version = "0.0.4",
+    .fingerprint = 0xb6540fdceb81f5c9,
+    .minimum_zig_version = "0.15.1",
+    .dependencies = .{
+        .xll = .{
+            .url = "https://github.com/AlexJReid/zigxll/archive/refs/tags/v0.3.10.tar.gz",
+            .hash = "xll-0.3.10-rzwxcZ20BQAOtjScbBQbXYmIBJkFYeaiXjNBHgZmLHiB",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

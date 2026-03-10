@@ -1,0 +1,103 @@
+# zigxll-connectors-nats
+
+A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigxll). Subscribes to NATS subjects and streams published messages into Excel cells via RTD.
+
+> **Proof of concept.** This is an experimental demo of what's possible with ZigXLL's RTD support. It connects to a hardcoded localhost NATS server (`127.0.0.1:4222`) with no authentication, TLS, or reconnect handling. Not intended for production use.
+>
+> That said, the implementation should be capable of Mega Volume(tm) - arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free-ish handoff from the nats.c thread pool. Feel free to benchmark independently.
+
+## Usage in Excel
+
+```
+=NATS.SUB("my.subject")
+```
+
+Or the raw RTD call:
+
+```
+=RTD("zigxll.connectors.nats", , "my.subject")
+```
+
+Requires a NATS server running on `127.0.0.1:4222`.
+
+### RTD throttle interval
+
+Excel throttles RTD updates via `Application.RTD.ThrottleInterval`, which defaults to 2000ms. For higher update rates, lower it in the VBA Immediate Window (`Alt+F11`, then `Ctrl+G`):
+
+```vb
+Application.RTD.ThrottleInterval = 100
+```
+
+Set to `0` for the fastest possible updates. This setting persists across sessions.
+
+## Building
+
+### Cross-compilation setup
+
+Although Excel XLL assemblies only run on Windows, ZigXLL cross-compiles Windows XLL add-ins from macOS or Linux with the help of [xwin](https://jake-shadle.github.io/xwin/).
+
+**Windows:** Skip this section.
+
+**macOS:**
+```bash
+brew install xwin
+xwin --accept-license splat --output ~/.xwin
+```
+
+**Linux:**
+```bash
+cargo install xwin
+xwin --accept-license splat --output ~/.xwin
+```
+
+If Cargo isn't available, install Rust via [rustup.rs](https://rustup.rs/) or download a prebuilt binary from the [xwin releases page](https://github.com/Jake-Shadle/xwin/releases).
+
+See the [ZigXLL README](https://github.com/AlexJReid/zigxll) for more details.
+
+### Build the XLL
+
+```bash
+zig build
+```
+
+The XLL will be output to `zig-out/lib/zigxll-connectors-nats.xll`.
+
+## RTD Servers
+
+| ProgID | CLSID | Description |
+|--------|-------|-------------|
+| `zigxll.connectors.nats` | `{A1B2C3D4-E5F6-7890-ABCD-EF0123456789}` | Subscribe to NATS subjects |
+| `zigxll.connectors.timer` | `{B2C3D4E5-F6A7-8901-2345-6789ABCDEF01}` | Timer (ticks every ~2s) |
+
+RTD servers are registered automatically when the XLL is loaded into Excel (writes to `HKCU\Software\Classes`, no admin needed).
+
+## Excel Functions
+
+| Function | Description |
+|----------|-------------|
+| `=NATS.SUB("subject")` | Subscribe to a NATS subject (RTD wrapper) |
+| `=TIMER()` | Live ticking counter demo |
+
+## Architecture
+
+The XLL embeds a vendored copy of [nats.c](https://github.com/nats-io/nats.c), compiled as a static library. This required some patches to work in the Zig XLL build environment (bypassing `InitOnceExecuteOnce` and `atexit` which deadlock without a full MSVC CRT). It may be possible to use nats.c as a Zig build system dependency instead of vendoring, but this hasn't been explored yet. Messages arrive on nats.c's internal thread pool via a subscription callback, which stores the latest value per topic and notifies Excel to refresh.
+
+Key implementation details:
+
+- **Arena allocator** for UTF-16 string conversions during Excel refresh cycles -reset once per `RefreshData` batch, zero malloc/free churn on the hot path
+- **Null-terminated subject copies** when passing Zig slices to the nats.c C API
+- **CRT compatibility patches** for the Zig XLL build environment -`InitOnceExecuteOnce` and `atexit()` are bypassed as they can deadlock in DLLs built with Zig's CRT stubs
+
+## Try out the pre-built XLL
+
+1. Go to the [Actions tab](../../actions) and click on the latest successful workflow run
+2. Scroll down to the very bottom and download the **zigxll-connectors-nats** artifact
+3. Extract the XLL file from the zip to a safe location -desktop works
+4. You will need to unblock it. More info: [Excel is blocking untrusted XLL add-ins](https://support.microsoft.com/en-gb/topic/excel-is-blocking-untrusted-xll-add-ins-by-default-1e3752e2-1177-4444-a807-7b700266a6fb)
+5. Double-click `zigxll-connectors-nats.xll` to load it into Excel
+
+## License
+
+MIT. See [LICENSE](LICENSE) for details.
+
+This project uses [nats.c](https://github.com/nats-io/nats.c) (Apache 2.0) and [ZigXLL](https://github.com/AlexJReid/zigxll) (MIT). See [NOTICE](NOTICE) for attribution.

@@ -1,0 +1,19 @@
+zigxll-nats
+Copyright (c) 2025 Alex Reid
+
+This product includes the following third-party software:
+
+---
+
+ZigXLL
+https://github.com/AlexJReid/zigxll
+Copyright (c) 2025 Alex Reid
+Licensed under the MIT License
+
+---
+
+nats.c
+https://github.com/nats-io/nats.c
+Copyright (c) 2015-2024 Synadia Communications Inc.
+Licensed under the Apache License, Version 2.0
+You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0

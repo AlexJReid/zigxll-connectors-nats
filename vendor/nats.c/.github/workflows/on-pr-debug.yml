@@ -1,0 +1,150 @@
+name: "PR"
+on:
+  pull_request:
+
+permissions:
+  contents: write # so it can comment
+
+jobs:
+  Ubuntu:
+    name: "Ubuntu"
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    uses: ./.github/workflows/build-test.yml
+    with:
+      compiler: ${{ matrix.compiler }}
+      server_version: main
+      type: Debug
+      experimental: ON
+
+  dev-mode:
+    name: "DEV_MODE"
+    uses: ./.github/workflows/build-test.yml
+    with:
+      dev_mode: ON
+      server_version: main
+      type: Debug
+      verbose_test_output: ON
+      verbose_make_output: ON
+      experimental: ON
+
+  sanitize:
+    name: "Sanitize"
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        sanitize: [address, thread]
+        pooled_dispatch: [pool, NO-pool]
+    uses: ./.github/workflows/build-test.yml
+    with:
+      server_version: main
+      type: RelWithDebInfo
+      compiler: ${{ matrix.compiler }}
+      sanitize: ${{ matrix.sanitize }}
+      pool_dispatch: ${{ matrix.pooled_dispatch }}
+      experimental: ON
+
+  coverage-TLS:
+    name: "Coverage: TLS"
+    strategy:
+      fail-fast: false
+      matrix:
+          pooled_dispatch: [pool, NO-pool]
+          write_deadline: [write_deadline, NO-write_deadline]
+    uses: ./.github/workflows/build-test.yml
+    with:
+      coverage: ON
+      type: RelWithDebInfo
+      server_version: main
+      compiler: gcc
+      tls: TLS
+      verify_host: verify_host
+      pool_dispatch: ${{ matrix.pooled_dispatch }}
+      write_deadline: ${{ matrix.write_deadline }}
+      experimental: ON
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  coverage-NO-verify_host:
+    name: "Coverage: NO-verify_host"
+    uses: ./.github/workflows/build-test.yml
+    with:
+      coverage: ON
+      type: RelWithDebInfo
+      server_version: main
+      compiler: gcc
+      tls: TLS
+      verify_host: NO-verify_host
+      experimental: ON
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  coverage-NO-TLS:
+    name: "Coverage NO-TLS"
+    uses: ./.github/workflows/build-test.yml
+    with:
+      coverage: ON
+      type: RelWithDebInfo
+      server_version: main
+      compiler: gcc
+      tls: NO-TLS
+      verify_host: NO-verify_host
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  Windows:
+    name: "Windows"
+    runs-on: windows-latest
+    steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout nats.c
+        uses: actions/checkout@v4
+
+      - name: Build
+        env:
+          VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DNATS_BUILD_STREAMING=OFF -DNATS_WITH_EXPERIMENTAL=ON
+          cmake --build build
+
+      - name: Test
+        shell: bash
+        run: |
+          cd build
+          # Download latest nats-server
+          rel="main" # TODO: parameterize
+          if [ "$rel" = "latest" ]; then
+            rel=$(curl -s https://api.github.com/repos/nats-io/nats-server/releases/latest | jq -r '.tag_name')
+          fi
+          if [ "$rel" != "${rel#v}" ] && wget https://github.com/nats-io/nats-server/releases/download/$rel/nats-server-$rel-windows-amd64.tar.gz; then
+            tar -xzf nats-server-$rel-linux-amd64.tar.gz
+            cp nats-server-$rel-windows-amd64/nats-server.exe ../deps/nats-server/nats-server.exe
+          else
+            for c in 1 2 3 4 5
+            do
+              echo "Attempt $c to download binary for main"
+              rm -f ./nats-server
+              curl -sf "https://binaries.nats.dev/nats-io/nats-server/v2@$rel" | PREFIX=. sh
+              # We are sometimes getting nats-server of size 0. Make sure we have a
+              # working nats-server by making sure we get a version number.
+              mv ./nats-server ./nats-server.exe
+              v="$(./nats-server.exe -v)"
+              if [ "$v" != "" ]; then
+                break
+              fi
+            done
+            mkdir -p ../deps/nats-server
+            mv ./nats-server.exe ../deps/nats-server/nats-server.exe
+          fi
+          export PATH=../deps/nats-server:$PATH
+          export NATS_TEST_SERVER_VERSION="$(nats-server -v)"
+          ctest -L test -C Debug --timeout 60 --output-on-failure --repeat until-pass:3

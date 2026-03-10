@@ -1,0 +1,62 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  NATS_C_VERSION: "3.12.0"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Fetch nats.c
+      run: |
+        curl -sL https://github.com/nats-io/nats.c/archive/refs/tags/v${{ env.NATS_C_VERSION }}.tar.gz -o nats.c.tar.gz
+        mkdir -p vendor
+        tar xzf nats.c.tar.gz -C vendor
+        mv vendor/nats.c-${{ env.NATS_C_VERSION }} vendor/nats.c
+      shell: bash
+
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Setup Zig
+      uses: mlugg/setup-zig@v2
+      with:
+        version: 0.15.1
+
+
+    - name: Build XLL
+      run: zig build --verbose
+
+    - name: Upload XLL artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: zigxll-connectors-nats
+        path: zig-out/lib/zigxll-connectors-nats.xll
+        if-no-files-found: error
+
+    - name: Create release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: zig-out/lib/zigxll-connectors-nats.xll
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
