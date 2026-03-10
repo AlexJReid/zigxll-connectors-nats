@@ -41,7 +41,7 @@ jobs:
 
 
     - name: Build XLL
-      run: zig build --verbose
+      run: zig build --release=small
 
     - name: Upload XLL artifact
       uses: actions/upload-artifact@v4
