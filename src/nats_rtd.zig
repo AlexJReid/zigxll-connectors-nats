@@ -333,7 +333,7 @@ fn toRtdValue(v: vi.Value) rtd.RtdValue {
 }
 
 pub const rtd_config: rtd.RtdConfig = .{
-    .clsid = rtd.guid("A1B2C3D4-E5F6-7890-ABCD-EF0123456789"),
+    .clsid = rtd.guid("F3910D1B-338F-49D4-A364-B113EA6CE115"),
     .prog_id = "zigxll.connectors.nats",
 };
 

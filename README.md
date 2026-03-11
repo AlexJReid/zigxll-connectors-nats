@@ -133,7 +133,7 @@ The XLL will be output to `zig-out/lib/zigxll-connectors-nats.xll`.
 
 | ProgID | CLSID | Description |
 |--------|-------|-------------|
-| `zigxll.connectors.nats` | `{A1B2C3D4-E5F6-7890-ABCD-EF0123456789}` | Subscribe to NATS subjects |
+| `zigxll.connectors.nats` | `{F3910D1B-338F-49D4-A364-B113EA6CE115}` | Subscribe to NATS subjects |
 
 RTD servers are registered automatically when the XLL is loaded into Excel (writes to `HKCU\Software\Classes`, no admin needed).
 
