@@ -101,6 +101,8 @@ If Cargo isn't available, install Rust via [rustup.rs](https://rustup.rs/) or do
 
 See the [ZigXLL README](https://github.com/AlexJReid/zigxll) for more details.
 
+**Note:** Cross-compilation does not yet support TLS (`-Dtls=true`), as it requires OpenSSL `.lib` files for the target platform to be available locally. CI builds natively on Windows with TLS enabled.
+
 ### Build the XLL
 
 ```bash

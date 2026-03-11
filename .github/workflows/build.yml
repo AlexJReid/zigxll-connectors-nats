@@ -44,12 +44,10 @@ jobs:
       run: |
         nuget install Microsoft.ArtifactSigning.Client -OutputDirectory .\packages
 
-    - name: Find OpenSSL
+    - name: Set OpenSSL paths
       shell: pwsh
       run: |
         $opensslDir = "C:\Program Files\OpenSSL"
-        Write-Host "--- OpenSSL directory layout ---"
-        Get-ChildItem $opensslDir -Recurse -Depth 3 | Select-Object FullName
         echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
         echo "OPENSSL_LIB_DIR=$opensslDir\lib\VC\x64\MD" >> $env:GITHUB_ENV
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A NATS connector for Excel, built as an XLL add-in using the [ZigXLL](https://github.com/AlexJReid/zigxll) framework. It subscribes to NATS subjects and streams messages into Excel cells via RTD (Real-Time Data). Proof of concept — hardcoded to `127.0.0.1:4222`, no auth/TLS.
+A NATS connector for Excel, built as an XLL add-in using the [ZigXLL](https://github.com/AlexJReid/zigxll) framework. It subscribes to NATS subjects and streams messages into Excel cells via RTD (Real-Time Data). Supports configurable server addresses, authentication (token, user/password, NKey, credentials file), and TLS. Defaults to `127.0.0.1:4222` with no auth/TLS when no config file is present.
 
 ## Build
 
@@ -49,7 +49,7 @@ Wrapper functions (`NATS.SUB`, `TIMER`) that call `xll.rtd_call.subscribe()` so 
 
 ### C interop
 
-- **nats.c integration** — Compiled as static C sources directly in `build.zig` (not as a separate library). Zig code uses `@cImport(@cInclude("nats.h"))`. Key flags: `-D_REENTRANT -DNATS_STATIC`. No TLS, no streaming.
+- **nats.c integration** — Compiled as static C sources directly in `build.zig` (not as a separate library). Zig code uses `@cImport(@cInclude("nats.h"))`. Key flags: `-D_REENTRANT -DNATS_STATIC`. TLS is supported via `-Dtls=true` build option (links OpenSSL). No streaming.
 
 ### Threading model
 
