@@ -8,7 +8,7 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 ## Features
 
-- **Single small binary** (~480KB `.xll` file), no dependencies or setup. Just open it in Excel, or install.
+- **Single small binary** (~480KB `.xll` file), no dependencies or setup. Just open it in Excel, or install. (TLS variant requires [Win64 OpenSSL v3](https://slproweb.com/products/Win32OpenSSL.html).)
 - **Built on [nats.c](https://github.com/nats-io/nats.c)**, the official, battle-tested NATS C client. Supports TLS, NKey, token, and credentials file authentication out of the box.
 - **No .NET, no COM boilerplate, automatic registration.** The RTD server registers itself to `HKCU` on load, no admin rights needed.
 - **Custom Excel functions** like `=NATS.SUB("prices.gbp")` so users never need to think about raw `=RTD(...)` syntax.
@@ -69,7 +69,7 @@ If no file is found, defaults are used (`nats://127.0.0.1:4222`, no auth, no TLS
 | `credentials_file` | string | Path to `.creds` file (JWT + NKey, for NATS NGS / operator mode) |
 | `nkey_public` | string | NKey public key (the `N...` string) |
 | `nkey_seed_file` | string | Path to NKey seed file (requires `nkey_public`) |
-| `tls` | bool | Enable TLS. Default `false` |
+| `tls` | bool | Enable TLS (requires [OpenSSL for Windows](https://slproweb.com/products/Win32OpenSSL.html)). Default `false` |
 | `tls_ca_cert` | string | Path to CA certificate file |
 | `tls_cert` | string | Path to client certificate file |
 | `tls_key` | string | Path to client private key file |
@@ -153,13 +153,18 @@ Key implementation details:
 - **Null-terminated subject copies** when passing Zig slices to the nats.c C API
 - **CRT compatibility patches** for the Zig XLL build environment -`InitOnceExecuteOnce` and `atexit()` are bypassed as they can deadlock in DLLs built with Zig's CRT stubs
 
-## Try out the pre-built XLL
+## Download
 
-1. Download the latest release (Windows only)
-2. Scroll down to the very bottom and download the **zigxll-connectors-nats** artifact
-3. Extract the XLL file from the zip to a safe location -desktop works
-4. You will need to unblock it. More info: [Excel is blocking untrusted XLL add-ins](https://support.microsoft.com/en-gb/topic/excel-is-blocking-untrusted-xll-add-ins-by-default-1e3752e2-1177-4444-a807-7b700266a6fb)
-5. Double-click `zigxll-connectors-nats.xll` to load it into Excel
+Pre-built, signed XLLs for 64-bit Excel on Windows:
+
+| Variant | Download | Notes |
+|---------|----------|-------|
+| **Standard** | [zigxll-connectors-nats-notls.xll](https://github.com/AlexJReid/zigxll-connectors-nats/releases/latest/download/zigxll-connectors-nats-notls.xll) | No external dependencies |
+| **With TLS** | [zigxll-connectors-nats.xll](https://github.com/AlexJReid/zigxll-connectors-nats/releases/latest/download/zigxll-connectors-nats.xll) | Requires [Win64 OpenSSL v3](https://slproweb.com/products/Win32OpenSSL.html) (64-bit) |
+
+1. Download one of the XLLs above
+2. You may need to unblock it: [Excel is blocking untrusted XLL add-ins](https://support.microsoft.com/en-gb/topic/excel-is-blocking-untrusted-xll-add-ins-by-default-1e3752e2-1177-4444-a807-7b700266a6fb)
+3. Double-click the `.xll` file to load it into Excel
 
 ## Roadmap
 

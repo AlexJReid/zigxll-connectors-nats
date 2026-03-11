@@ -101,15 +101,11 @@ pub fn build(b: *std.Build) void {
         const lib_path: []const u8 = if (std.process.getEnvVarOwned(b.allocator, "OPENSSL_LIB_DIR")) |d| d else |_| b.fmt("{s}\\lib", .{openssl_dir});
         const inc_path: []const u8 = b.fmt("{s}\\include", .{openssl_dir});
 
-        xll.addObjectFile(.{ .cwd_relative = b.fmt("{s}\\libssl_static.lib", .{lib_path}) });
-        xll.addObjectFile(.{ .cwd_relative = b.fmt("{s}\\libcrypto_static.lib", .{lib_path}) });
+        xll.addObjectFile(.{ .cwd_relative = b.fmt("{s}\\libssl.lib", .{lib_path}) });
+        xll.addObjectFile(.{ .cwd_relative = b.fmt("{s}\\libcrypto.lib", .{lib_path}) });
         xll.addIncludePath(.{ .cwd_relative = inc_path });
         user_module.addIncludePath(.{ .cwd_relative = inc_path });
         user_module.linkSystemLibrary("crypt32", .{});
-
-        // Static OpenSSL libs are built against msvcrt.lib, which conflicts with
-        // the vcruntime linked by ZigXLL. This pragma tells LLD to ignore msvcrt.
-        xll.addCSourceFile(.{ .file = b.path("src/nodefaultlib_msvcrt.c") });
     }
 
     // Also add include path to user module so Zig code can @cImport nats.h
