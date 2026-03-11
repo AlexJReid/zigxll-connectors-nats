@@ -44,13 +44,19 @@ jobs:
       run: |
         nuget install Microsoft.ArtifactSigning.Client -OutputDirectory .\packages
 
+    - name: Install OpenSSL
+      shell: pwsh
+      run: |
+        choco install openssl --no-progress -y
+        echo "OPENSSL_DIR=C:\Program Files\OpenSSL-Win64" >> $env:GITHUB_ENV
+
     - name: Setup Zig
       uses: mlugg/setup-zig@v2
       with:
         version: 0.15.1
 
     - name: Build XLL
-      run: zig build --release=small
+      run: zig build --release=small -Dtls=true
 
     - name: Sign XLL
       shell: pwsh

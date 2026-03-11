@@ -10,6 +10,11 @@ pub fn build(b: *std.Build) void {
     });
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
+    // TLS is only available when building natively on Windows (where OpenSSL is installed).
+    // Cross-compiling from macOS/Linux builds without TLS support.
+    const is_native = b.graph.host.result.os.tag == .windows;
+    const enable_tls = b.option(bool, "tls", "Enable TLS support (requires OpenSSL)") orelse is_native;
+
     // Create a module for our user functions (don't add imports yet)
     const user_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -26,7 +31,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // Vendor nats.c — compile as a static C library, no TLS, no streaming
+    // Vendor nats.c — compile as a static C library, no streaming. TLS optional.
     const nats_src = b.path("vendor/nats.c/src");
 
     const nats_core_sources: []const []const u8 = &.{
@@ -51,7 +56,11 @@ pub fn build(b: *std.Build) void {
         "win/cond.c", "win/mutex.c", "win/sock.c", "win/strings.c", "win/thread.c",
     };
 
-    const nats_c_flags: []const []const u8 = &.{
+    const nats_c_flags: []const []const u8 = if (enable_tls) &.{
+        "-D_REENTRANT",
+        "-DNATS_STATIC",
+        "-DNATS_HAS_TLS",
+    } else &.{
         "-D_REENTRANT",
         "-DNATS_STATIC",
     };
@@ -80,6 +89,21 @@ pub fn build(b: *std.Build) void {
     // Windows system libs needed by nats.c
     user_module.linkSystemLibrary("ws2_32", .{});
 
+    // TLS: link OpenSSL and add its include path
+    if (enable_tls) {
+        xll.linkSystemLibrary("libssl");
+        xll.linkSystemLibrary("libcrypto");
+        user_module.linkSystemLibrary("crypt32", .{});
+        // Allow overriding OpenSSL location via OPENSSL_DIR
+        if (std.process.getEnvVarOwned(b.allocator, "OPENSSL_DIR")) |dir| {
+            const lib_path: []const u8 = b.fmt("{s}\\lib", .{dir});
+            const inc_path: []const u8 = b.fmt("{s}\\include", .{dir});
+            xll.addLibraryPath(.{ .cwd_relative = lib_path });
+            xll.addIncludePath(.{ .cwd_relative = inc_path });
+            user_module.addIncludePath(.{ .cwd_relative = inc_path });
+            b.allocator.free(dir);
+        } else |_| {}
+    }
 
     // Also add include path to user module so Zig code can @cImport nats.h
     user_module.addIncludePath(nats_src);
