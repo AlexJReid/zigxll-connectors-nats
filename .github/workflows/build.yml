@@ -44,13 +44,13 @@ jobs:
       run: |
         nuget install Microsoft.ArtifactSigning.Client -OutputDirectory .\packages
 
-    - name: Install OpenSSL
+    - name: Find OpenSSL
       shell: pwsh
       run: |
-        choco install openssl --no-progress -y
-        echo "OPENSSL_DIR=C:\Program Files\OpenSSL-Win64" >> $env:GITHUB_ENV
+        $opensslDir = "C:\Program Files\OpenSSL"
         Write-Host "--- OpenSSL directory layout ---"
-        Get-ChildItem "C:\Program Files\OpenSSL-Win64" -Recurse -Depth 2 | Select-Object FullName
+        Get-ChildItem $opensslDir -Recurse -Depth 3 | Select-Object FullName
+        echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
 
     - name: Setup Zig
       uses: mlugg/setup-zig@v2

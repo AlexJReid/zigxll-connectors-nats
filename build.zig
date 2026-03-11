@@ -90,14 +90,15 @@ pub fn build(b: *std.Build) void {
     user_module.linkSystemLibrary("ws2_32", .{});
 
     // TLS: link OpenSSL and add its include/lib paths.
-    // OPENSSL_DIR must point to the OpenSSL installation root (e.g. C:\Program Files\OpenSSL-Win64).
-    // Chocolatey: choco install openssl
+    // Set OPENSSL_DIR to the install root (e.g. C:\Program Files\OpenSSL).
+    // Optionally set OPENSSL_LIB_DIR if libs aren't in OPENSSL_DIR\lib
+    // (e.g. C:\Program Files\OpenSSL\lib\VC\x64\MT).
     if (enable_tls) {
         const openssl_dir = std.process.getEnvVarOwned(b.allocator, "OPENSSL_DIR") catch
             @panic("TLS enabled but OPENSSL_DIR not set. Set it to your OpenSSL installation root, or use -Dtls=false.");
         defer b.allocator.free(openssl_dir);
 
-        const lib_path: []const u8 = b.fmt("{s}\\lib", .{openssl_dir});
+        const lib_path: []const u8 = if (std.process.getEnvVarOwned(b.allocator, "OPENSSL_LIB_DIR")) |d| d else |_| b.fmt("{s}\\lib", .{openssl_dir});
         const inc_path: []const u8 = b.fmt("{s}\\include", .{openssl_dir});
 
         xll.addObjectFile(.{ .cwd_relative = b.fmt("{s}\\libssl.lib", .{lib_path}) });
