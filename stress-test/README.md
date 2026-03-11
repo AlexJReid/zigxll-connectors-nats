@@ -1,5 +1,7 @@
 # NATS RTD Stress Test
 
+See it running: https://youtu.be/iCftl9E8PK0
+
 Tools for stress testing the NATS Excel XLL add-in with many concurrent RTD subscriptions.
 
 ## Overview
