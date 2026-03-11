@@ -183,15 +183,9 @@ Returns `#VALUE!` if not connected or publish fails.
 
 ### NATS.INFO - connection info and statistics
 
-`NATS.INFO` returns a spilling 2-column matrix with connection metadata and message statistics from nats.c. Useful for dashboards and debugging.
-
-```
-=NATS.INFO()
-```
+`NATS.INFO` returns a spilling 2-column matrix with connection metadata and message statistics from nats.c. Useful for debugging.
 
 <img src="doc/info.png" alt="NATS.INFO output in Excel" width="280">
-
-Returns "not connected" if no connection is active.
 
 ## Architecture
 
@@ -228,6 +222,7 @@ Pre-built, signed XLLs for 64-bit Excel on Windows:
 MIT. See [LICENSE](LICENSE) for details.
 
 This project uses [nats.c](https://github.com/nats-io/nats.c) (Apache 2.0) and [ZigXLL](https://github.com/AlexJReid/zigxll) (MIT). See [NOTICE](NOTICE) for attribution.
+
 
 
 
