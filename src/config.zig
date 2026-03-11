@@ -15,7 +15,15 @@ const win = @cImport({
     @cInclude("windows.h");
 });
 
+const build_options = @import("build_options");
 const allocator = std.heap.c_allocator;
+
+extern fn win_load_system_roots() ?[*:0]u8;
+
+fn isTlsUrl(url: ?[]const u8) bool {
+    const u = url orelse return false;
+    return std.mem.startsWith(u8, u, "tls://");
+}
 
 pub const Config = struct {
     /// NATS server URL (e.g. "nats://host:4222"). Overridden by `servers` if set.
@@ -199,8 +207,9 @@ pub fn applyOptions(opts_opaque: *anyopaque, cfg: *const Config) c_int {
         }
     }
 
-    // TLS
-    if (cfg.tls) {
+    // Auto-detect TLS from URL scheme
+    const tls_enabled = cfg.tls or isTlsUrl(cfg.url);
+    if (tls_enabled) {
         rtd.debugLog("config: enabling TLS", .{});
         s = nats.natsOptions_SetSecure(opts, true);
         if (s != nats.NATS_OK) {
@@ -245,6 +254,26 @@ pub fn applyOptions(opts_opaque: *anyopaque, cfg: *const Config) c_int {
         if (s != nats.NATS_OK) {
             rtd.debugLog("config: SkipServerVerification failed status={d}", .{s});
             return s;
+        }
+    }
+
+    // If TLS is enabled but no explicit CA cert and not skipping verify,
+    // load root CAs from the Windows certificate store.
+    if (comptime build_options.tls) {
+        if (tls_enabled and cfg.tls_ca_cert == null and !cfg.tls_skip_verify) {
+            rtd.debugLog("config: loading system root CAs from Windows cert store", .{});
+            const pem = win_load_system_roots();
+            if (pem) |p| {
+                defer std.c.free(p);
+                s = nats.natsOptions_SetCATrustedCertificates(opts, p);
+                if (s != nats.NATS_OK) {
+                    rtd.debugLog("config: SetCATrustedCertificates failed status={d}", .{s});
+                    return s;
+                }
+                rtd.debugLog("config: system root CAs loaded", .{});
+            } else {
+                rtd.debugLog("config: WARNING could not load system root CAs", .{});
+            }
         }
     }
 

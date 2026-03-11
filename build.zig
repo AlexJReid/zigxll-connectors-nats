@@ -15,11 +15,18 @@ pub fn build(b: *std.Build) void {
     const is_native = b.graph.host.result.os.tag == .windows;
     const enable_tls = b.option(bool, "tls", "Enable TLS support (requires OpenSSL)") orelse is_native;
 
+    // Pass build options to Zig code
+    const options = b.addOptions();
+    options.addOption(bool, "tls", enable_tls);
+
     // Create a module for our user functions (don't add imports yet)
     const user_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{ .name = "build_options", .module = options.createModule() },
+        },
     });
 
     // Build the XLL using the framework's helper
@@ -106,6 +113,13 @@ pub fn build(b: *std.Build) void {
         xll.addIncludePath(.{ .cwd_relative = inc_path });
         user_module.addIncludePath(.{ .cwd_relative = inc_path });
         user_module.linkSystemLibrary("crypt32", .{});
+
+        // Windows cert store helper — loads system root CAs for TLS verification
+        xll.addCSourceFiles(.{
+            .root = b.path("src"),
+            .files = &.{"win_certs.c"},
+            .flags = &.{},
+        });
     }
 
     // Also add include path to user module so Zig code can @cImport nats.h
