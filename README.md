@@ -8,7 +8,7 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 ## Features
 
-- **Single small binary** (~370KB `.xll` file), no dependencies or setup. Just open it in Excel, or install.
+- **Single small binary** (~480KB `.xll` file), no dependencies or setup. Just open it in Excel, or install.
 - **Built on [nats.c](https://github.com/nats-io/nats.c)**, the official, battle-tested NATS C client. Supports TLS, NKey, token, and credentials file authentication out of the box.
 - **No .NET, no COM boilerplate, automatic registration.** The RTD server registers itself to `HKCU` on load, no admin rights needed.
 - **Custom Excel functions** like `=NATS.SUB("prices.gbp")` so users never need to think about raw `=RTD(...)` syntax.
@@ -167,7 +167,7 @@ Key implementation details:
 - **Last value population:** populate cells with the most recent value on subscribe, so sheets aren't empty until the next publish
 - **Debouncing/windowing:** reduce unnecessary recalculations, e.g. round to 3 decimal places and only update the cell if the rounded value differs
 - **Publish support:** `=NATS.PUB("subject", value)` to publish messages back to NATS from Excel
-- **Reconnect handling:** graceful reconnection with backoff when the NATS server is unavailable or restarts
+- **Reconnect status in cells:** surface connection state (connected/reconnecting/disconnected) so users can see when the link is down
 
 ## License
 
