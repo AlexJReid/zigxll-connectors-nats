@@ -8,65 +8,9 @@ const xll = @import("xll");
 const rtd = xll.rtd;
 const nats = @cImport(@cInclude("nats.h"));
 const vi = @import("value_interp.zig");
-const config = @import("config.zig");
-const win = @cImport({
-    @cDefine("WIN32_LEAN_AND_MEAN", "1");
-    @cInclude("windows.h");
-    @cInclude("winsock2.h");
-});
+const nats_conn = @import("nats_conn.zig");
 
 const allocator = std.heap.c_allocator;
-
-/// Pre-flight checks to ensure the Windows environment is sane before
-/// initialising the NATS C library. Logs every step via OutputDebugString
-/// so we can see exactly where things go wrong.
-fn preflightChecks() bool {
-    // Quick sanity checks for Win32 primitives that nats.c depends on.
-    // Only log on failure — success is silent.
-    var wsa_data: win.WSADATA = undefined;
-    const wsa_rc = win.WSAStartup(win.MAKEWORD(2, 2), &wsa_data);
-    if (wsa_rc != 0) {
-        rtd.debugLog("preflight: WSAStartup FAILED rc={d}", .{wsa_rc});
-        return false;
-    }
-    _ = win.WSACleanup();
-
-    var cs: win.CRITICAL_SECTION = undefined;
-    win.InitializeCriticalSection(&cs);
-    win.EnterCriticalSection(&cs);
-    win.LeaveCriticalSection(&cs);
-    win.DeleteCriticalSection(&cs);
-
-    const handle = win.CreateThread(null, 0, &testThreadProc, null, 0, null);
-    if (handle == null) {
-        rtd.debugLog("preflight: CreateThread FAILED err={d}", .{win.GetLastError()});
-        return false;
-    }
-    _ = win.WaitForSingleObject(handle, 5000);
-    _ = win.CloseHandle(handle);
-
-    const tls_idx = win.TlsAlloc();
-    if (tls_idx == win.TLS_OUT_OF_INDEXES) {
-        rtd.debugLog("preflight: TlsAlloc FAILED", .{});
-        return false;
-    }
-    _ = win.TlsSetValue(tls_idx, null);
-    _ = win.TlsFree(tls_idx);
-
-    const test_ptr = @as(?*anyopaque, std.c.malloc(1024));
-    if (test_ptr == null) {
-        rtd.debugLog("preflight: malloc FAILED", .{});
-        return false;
-    }
-    std.c.free(test_ptr);
-
-    rtd.debugLog("preflight: all checks passed", .{});
-    return true;
-}
-
-fn testThreadProc(_: ?*anyopaque) callconv(.c) u32 {
-    return 0;
-}
 
 const TypeHint = vi.TypeHint;
 
@@ -89,50 +33,12 @@ const NatsHandler = struct {
     pub fn onStart(self: *NatsHandler, ctx: *rtd.RtdContext) void {
         rtd.debugLog("NATS onStart: entering", .{});
         self.ctx = ctx;
-
-        if (!preflightChecks()) {
-            rtd.debugLog("NATS onStart: preflight checks FAILED, aborting", .{});
-            return;
+        self.nc = @ptrCast(nats_conn.getConnection());
+        if (self.nc) |nc| {
+            rtd.debugLog("NATS onStart: connected OK, nc={*}", .{nc});
+        } else {
+            rtd.debugLog("NATS onStart: connection failed", .{});
         }
-
-        rtd.debugLog("NATS onStart: calling nats_Open(-1)", .{});
-        const status = nats.nats_Open(-1);
-        if (status != nats.NATS_OK) {
-            rtd.debugLog("NATS onStart: nats_Open failed with status={d}", .{status});
-            return;
-        }
-        rtd.debugLog("NATS onStart: nats_Open succeeded", .{});
-
-        // Load config from file (or defaults)
-        const cfg = config.load();
-
-        // Create options and apply config
-        var opts: ?*nats.natsOptions = null;
-        var cs = nats.natsOptions_Create(&opts);
-        if (cs != nats.NATS_OK) {
-            rtd.debugLog("NATS onStart: natsOptions_Create failed status={d}", .{cs});
-            return;
-        }
-
-        const cfg_status = config.applyOptions(@ptrCast(opts.?), &cfg);
-        if (cfg_status != nats.NATS_OK) {
-            rtd.debugLog("NATS onStart: config applyOptions failed status={d}", .{cfg_status});
-            nats.natsOptions_Destroy(opts);
-            return;
-        }
-
-        // Connect using the configured options
-        const url = cfg.effectiveUrl();
-        rtd.debugLog("NATS onStart: connecting to '{s}'", .{url});
-        cs = nats.natsConnection_Connect(&self.nc, opts);
-        if (cs != nats.NATS_OK) {
-            rtd.debugLog("NATS onStart: connect failed with status={d}", .{cs});
-            nats.natsOptions_Destroy(opts);
-            return;
-        }
-
-        nats.natsOptions_Destroy(opts);
-        rtd.debugLog("NATS onStart: connected OK, nc={*}", .{self.nc.?});
     }
 
     pub fn onConnect(self: *NatsHandler, ctx: *rtd.RtdContext, topic_id: i32, _: usize) void {
@@ -220,13 +126,6 @@ const NatsHandler = struct {
     pub fn onTerminate(self: *NatsHandler, _: *rtd.RtdContext) void {
         rtd.debugLog("NATS onTerminate: entering", .{});
 
-        // Close NATS connection (will stop all subs)
-        if (self.nc) |nc| {
-            rtd.debugLog("NATS onTerminate: closing connection nc={*}", .{nc});
-            nats.natsConnection_Close(nc);
-            rtd.debugLog("NATS onTerminate: connection closed", .{});
-        }
-
         self.mu.lock();
 
         // Destroy subscription handles
@@ -234,6 +133,7 @@ const NatsHandler = struct {
         var sit = self.subs.iterator();
         while (sit.next()) |entry| {
             rtd.debugLog("NATS onTerminate: destroying sub for topic_id={d}", .{entry.key_ptr.*});
+            _ = nats.natsSubscription_Unsubscribe(entry.value_ptr.*);
             nats.natsSubscription_Destroy(entry.value_ptr.*);
         }
         self.subs.deinit();
@@ -257,15 +157,11 @@ const NatsHandler = struct {
         self.subject_map.deinit();
         self.refresh_arena.deinit();
 
+        self.nc = null;
         self.mu.unlock();
 
-        if (self.nc) |nc| {
-            rtd.debugLog("NATS onTerminate: destroying connection", .{});
-            nats.natsConnection_Destroy(nc);
-            self.nc = null;
-        }
-        rtd.debugLog("NATS onTerminate: calling nats_Close()", .{});
-        nats.nats_Close();
+        // Close the shared connection
+        nats_conn.close();
         rtd.debugLog("NATS onTerminate: done", .{});
     }
 

@@ -13,7 +13,7 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 - **Single small binary** (~480KB `.xll` file), no dependencies or setup. Just open it in Excel, or install. (TLS variant requires [Win64 OpenSSL v3](https://slproweb.com/products/Win32OpenSSL.html).)
 - **Built on [nats.c](https://github.com/nats-io/nats.c)**, the official, battle-tested NATS C client. Supports TLS, NKey, token, and credentials file authentication out of the box.
 - **No .NET, no COM boilerplate, automatic registration.** The RTD server registers itself to `HKCU` on load, no admin rights needed.
-- **Custom Excel functions** like `=NATS.SUB("prices.gbp")` so users never need to think about raw `=RTD(...)` syntax.
+- **Custom Excel functions** like `=NATS.SUB("prices.gbp")` and `=NATS.PUB("commands.trade", A1)` so users never need to think about raw `=RTD(...)` syntax.
 - **Configurable server addresses.** Single URL or cluster failover via `config.json`.
 - **Type hints and JSON extraction.** `=NATS.SUB("ticker.AAPL", "$.price")` parses JSON payloads and returns native Excel types — numbers, bools, strings — ready for formulas and charts.
 - **Designed for throughput.** Arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free handoff from the nats.c thread pool to Excel's RTD polling.
@@ -145,6 +145,21 @@ RTD servers are registered automatically when the XLL is loaded into Excel (writ
 |----------|-------------|
 | `=NATS.SUB("subject")` | Subscribe to a NATS subject (RTD wrapper) |
 | `=NATS.SUB("subject", "type")` | Subscribe with a type hint (see below) |
+| `=NATS.PUB("subject", "payload")` | Publish a message to a NATS subject |
+
+### NATS.PUB — reactive publishing
+
+`NATS.PUB` publishes a message to NATS and returns the payload on success. Because it's a regular Excel function, it **re-publishes automatically whenever its input cells change** — making it reactive.
+
+```
+=NATS.PUB("commands.set-target", B2)
+```
+
+When `B2` changes, the new value is published to `commands.set-target` immediately. This makes it easy to build two-way Excel↔NATS workflows: subscribe to live data with `NATS.SUB`, transform it with formulas, and publish results back with `NATS.PUB`.
+
+The connection is shared with `NATS.SUB`. If no RTD subscriptions are active, `NATS.PUB` establishes the connection lazily on first use.
+
+Returns `#VALUE!` if not connected or publish fails.
 
 ### Type hints
 
@@ -189,7 +204,6 @@ Pre-built, signed XLLs for 64-bit Excel on Windows:
 - **JetStream:** subscribe to JetStream consumers for durable, replay-capable streams with at-least-once delivery
 - **Last value population:** populate cells with the most recent value on subscribe, so sheets aren't empty until the next publish
 - **Debouncing/windowing:** reduce unnecessary recalculations, e.g. round to 3 decimal places and only update the cell if the rounded value differs
-- **Publish support:** `=NATS.PUB("subject", value)` to publish messages back to NATS from Excel
 - **Reconnect status in cells:** surface connection state (connected/reconnecting/disconnected) so users can see when the link is down
 
 ## License

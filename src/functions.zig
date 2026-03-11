@@ -2,6 +2,8 @@ const std = @import("std");
 const xll = @import("xll");
 const ExcelFunction = xll.ExcelFunction;
 const ParamMeta = xll.ParamMeta;
+const nats = @cImport(@cInclude("nats.h"));
+const nats_conn = @import("nats_conn.zig");
 
 const allocator = std.heap.c_allocator;
 
@@ -29,4 +31,30 @@ fn natsSubFunc(subject: []const u8, type_hint: ?[]const u8) !*xll.xl.XLOPER12 {
         return xll.rtd_call.subscribe("zigxll.connectors.nats", &.{ subject, hint });
     }
     return xll.rtd_call.subscribe("zigxll.connectors.nats", &.{subject});
+}
+
+// Publish a message to a NATS subject.
+// =NATS.PUB("subject", "payload") → returns the payload on success, #N/A if not connected.
+pub const nats_pub = ExcelFunction(.{
+    .name = "NATS.PUB",
+    .description = "Publish a message to a NATS subject",
+    .category = "NATS",
+    .thread_safe = false,
+    .params = &[_]ParamMeta{
+        .{ .name = "subject", .description = "NATS subject to publish to" },
+        .{ .name = "payload", .description = "Message payload to publish" },
+    },
+    .func = natsPubFunc,
+});
+
+fn natsPubFunc(subject: []const u8, payload: []const u8) ![]const u8 {
+    const conn: *nats.natsConnection = @ptrCast(nats_conn.getConnection() orelse return error.NotConnected);
+
+    const subject_z = try allocator.dupeZ(u8, subject);
+    defer allocator.free(subject_z);
+
+    const status = nats.natsConnection_Publish(conn, subject_z.ptr, payload.ptr, @intCast(payload.len));
+    if (status != nats.NATS_OK) return error.PublishFailed;
+
+    return try allocator.dupe(u8, payload);
 }
