@@ -12,7 +12,7 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 ## Features
 
-- **Single small binary** (~480KB `.xll` file), no dependencies or setup. Just open it in Excel, or install. (If you need tls:// connections, Win64 OpenSSL v3 is required. [Download .msi](https://slproweb.com/download/Win64OpenSSL-3_6_1.msi). This is a fairly common requirement so you may have it already.
+- **Single small binary** (~480KB `.xll` file). Just open it in Excel, or install. (If you need tls:// connections, Win64 OpenSSL v3 is required. [Download .msi](https://slproweb.com/download/Win64OpenSSL-3_6_1.msi). This is a fairly common requirement so you may have it already.)
 - **Built on [nats.c](https://github.com/nats-io/nats.c)**, the official, battle-tested NATS C client. Supports TLS, NKey, token, and credentials file authentication out of the box.
 - **Supports PUB snd SUB**, with more on the way.
 - **No .NET framework dependencies, no COM setup, just run it** The RTD server registers itself to `HKCU` on load, no admin rights needed.
@@ -221,6 +221,7 @@ Pre-built, signed XLLs for 64-bit Excel on Windows:
 MIT. See [LICENSE](LICENSE) for details.
 
 This project uses [nats.c](https://github.com/nats-io/nats.c) (Apache 2.0) and [ZigXLL](https://github.com/AlexJReid/zigxll) (MIT). See [NOTICE](NOTICE) for attribution.
+
 
 
 
