@@ -14,9 +14,9 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 - **Single small binary** (~480KB `.xll` file), no dependencies or setup. Just open it in Excel, or install. (TLS variant requires [Win64 OpenSSL v3](https://slproweb.com/products/Win32OpenSSL.html).)
 - **Built on [nats.c](https://github.com/nats-io/nats.c)**, the official, battle-tested NATS C client. Supports TLS, NKey, token, and credentials file authentication out of the box.
-- **Supports PUB snd SUB**, with more on the way
+- **Supports PUB snd SUB**, with more on the way.
 - **No .NET framework dependencies, no COM setup, just run it** The RTD server registers itself to `HKCU` on load, no admin rights needed.
-- **Custom Excel functions** like `=NATS.SUB("prices.gbp")` and `=NATS.PUB("commands.trade", A1)` so users never need to think about raw `=RTD(...)` syntax.
+- **Custom Excel RTD wrapper functions** like `=NATS.SUB("prices.gbp")` so users never need to think about raw `=RTD(...)` syntax. You can create your own wrapper functions to your subjects, i.e. building a subject string based on multiple, documented parameters.
 - **File-base configuration**, with `config.json` - details below.
 - **Type hints and JSON extraction.** `=NATS.SUB("ticker.AAPL", "$.price")` parses JSON payloads and returns native Excel types - numbers, bools, strings - ready for formulas and charts.
 - **Designed for throughput.** Arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free handoff from the nats.c thread pool to Excel's RTD polling.
@@ -221,6 +221,7 @@ Pre-built, signed XLLs for 64-bit Excel on Windows:
 MIT. See [LICENSE](LICENSE) for details.
 
 This project uses [nats.c](https://github.com/nats-io/nats.c) (Apache 2.0) and [ZigXLL](https://github.com/AlexJReid/zigxll) (MIT). See [NOTICE](NOTICE) for attribution.
+
 
 
 
