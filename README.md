@@ -4,7 +4,7 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 [Introductory blog post](https://alexjreid.dev/posts/zigxll/)
 
-[![Demo video](https://img.youtube.com/vi/sWCvkbp4RcA/maxresdefault.jpg)](https://youtu.be/sWCvkbp4RcA)
+[![Demo video](https://img.youtube.com/vi/iCftl9E8PK0/maxresdefault.jpg)](https://youtu.be/iCftl9E8PK0)
 
 ## Features
 
