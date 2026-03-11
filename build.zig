@@ -106,6 +106,10 @@ pub fn build(b: *std.Build) void {
         xll.addIncludePath(.{ .cwd_relative = inc_path });
         user_module.addIncludePath(.{ .cwd_relative = inc_path });
         user_module.linkSystemLibrary("crypt32", .{});
+
+        // Static OpenSSL libs are built against msvcrt.lib, which conflicts with
+        // the vcruntime linked by ZigXLL. This pragma tells LLD to ignore msvcrt.
+        xll.addCSourceFile(.{ .file = b.path("src/nodefaultlib_msvcrt.c") });
     }
 
     // Also add include path to user module so Zig code can @cImport nats.h
