@@ -89,20 +89,22 @@ pub fn build(b: *std.Build) void {
     // Windows system libs needed by nats.c
     user_module.linkSystemLibrary("ws2_32", .{});
 
-    // TLS: link OpenSSL and add its include path
+    // TLS: link OpenSSL and add its include/lib paths.
+    // OPENSSL_DIR must point to the OpenSSL installation root (e.g. C:\Program Files\OpenSSL-Win64).
+    // Chocolatey: choco install openssl
     if (enable_tls) {
-        xll.linkSystemLibrary("libssl");
-        xll.linkSystemLibrary("libcrypto");
+        const openssl_dir = std.process.getEnvVarOwned(b.allocator, "OPENSSL_DIR") catch
+            @panic("TLS enabled but OPENSSL_DIR not set. Set it to your OpenSSL installation root, or use -Dtls=false.");
+        defer b.allocator.free(openssl_dir);
+
+        const lib_path: []const u8 = b.fmt("{s}\\lib", .{openssl_dir});
+        const inc_path: []const u8 = b.fmt("{s}\\include", .{openssl_dir});
+
+        xll.addObjectFile(.{ .cwd_relative = b.fmt("{s}\\libssl.lib", .{lib_path}) });
+        xll.addObjectFile(.{ .cwd_relative = b.fmt("{s}\\libcrypto.lib", .{lib_path}) });
+        xll.addIncludePath(.{ .cwd_relative = inc_path });
+        user_module.addIncludePath(.{ .cwd_relative = inc_path });
         user_module.linkSystemLibrary("crypt32", .{});
-        // Allow overriding OpenSSL location via OPENSSL_DIR
-        if (std.process.getEnvVarOwned(b.allocator, "OPENSSL_DIR")) |dir| {
-            const lib_path: []const u8 = b.fmt("{s}\\lib", .{dir});
-            const inc_path: []const u8 = b.fmt("{s}\\include", .{dir});
-            xll.addLibraryPath(.{ .cwd_relative = lib_path });
-            xll.addIncludePath(.{ .cwd_relative = inc_path });
-            user_module.addIncludePath(.{ .cwd_relative = inc_path });
-            b.allocator.free(dir);
-        } else |_| {}
     }
 
     // Also add include path to user module so Zig code can @cImport nats.h

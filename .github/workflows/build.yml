@@ -49,6 +49,8 @@ jobs:
       run: |
         choco install openssl --no-progress -y
         echo "OPENSSL_DIR=C:\Program Files\OpenSSL-Win64" >> $env:GITHUB_ENV
+        Write-Host "--- OpenSSL directory layout ---"
+        Get-ChildItem "C:\Program Files\OpenSSL-Win64" -Recurse -Depth 2 | Select-Object FullName
 
     - name: Setup Zig
       uses: mlugg/setup-zig@v2
