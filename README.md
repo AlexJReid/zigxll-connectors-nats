@@ -6,12 +6,14 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 [![Demo video](https://img.youtube.com/vi/sWCvkbp4RcA/maxresdefault.jpg)](https://youtu.be/sWCvkbp4RcA)
 
-## Why
+## Features
 
 - **Single small binary** (~370KB `.xll` file), nothing to install. Just open it in Excel.
-- **No .NET, no VSTO, no COM boilerplate.** The RTD server registers itself to `HKCU` on load, no admin rights needed.
+- **No .NET, no COM boilerplate, automatic registration.** The RTD server registers itself to `HKCU` on load, no admin rights needed.
 - **Custom Excel functions** like `=NATS.SUB("prices.gbp")` so users never need to think about raw `=RTD(...)` syntax.
-- **Built on [nats.c](https://github.com/nats-io/nats.c)**, a mature, battle-tested NATS client. Not a toy reimplementation.
+- **Built on [nats.c](https://github.com/nats-io/nats.c)**, the official, battle-tested NATS C client. Supports TLS, NKey, token, and credentials file authentication out of the box.
+- **Configurable server addresses.** Single URL or cluster failover via `config.json`.
+- **Type hints and JSON extraction.** `=NATS.SUB("ticker.AAPL", "$.price")` parses JSON payloads and returns native Excel types — numbers, bools, strings — ready for formulas and charts.
 - **Designed for throughput.** Arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free handoff from the nats.c thread pool to Excel's RTD polling.
 
 ## Usage in Excel
@@ -161,14 +163,8 @@ Key implementation details:
 
 ## Roadmap
 
-This is a proof of concept. The following are areas for future development:
-
-- **~~Authentication~~:** ✅ token, user/password, NKey, and credentials file auth via `config.json`
-- **~~TLS~~:** ✅ TLS with CA cert, client certs, and skip-verify via `config.json`
-- **~~Configurable server addresses~~:** ✅ single URL or cluster failover via `config.json`
 - **JetStream:** subscribe to JetStream consumers for durable, replay-capable streams with at-least-once delivery
 - **Last value population:** populate cells with the most recent value on subscribe, so sheets aren't empty until the next publish
-- **~~Lightweight transforms~~:** ✅ type hints and JSON dot-path extraction are now supported via the second argument to `NATS.SUB`
 - **Debouncing/windowing:** reduce unnecessary recalculations, e.g. round to 3 decimal places and only update the cell if the rounded value differs
 - **Publish support:** `=NATS.PUB("subject", value)` to publish messages back to NATS from Excel
 - **Reconnect handling:** graceful reconnection with backoff when the NATS server is unavailable or restarts
