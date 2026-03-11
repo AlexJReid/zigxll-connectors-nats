@@ -4,9 +4,13 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 [Introductory blog post](https://alexjreid.dev/posts/zigxll/)
 
-[![Demo video](doc/demo.gif)](https://youtu.be/iCftl9E8PK0)
-
-[Watch the full demo on YouTube](https://youtu.be/iCftl9E8PK0)
+<p align="center">
+  <a href="https://youtu.be/iCftl9E8PK0">
+    <img src="doc/demo.gif" alt="Demo video" style="border: 1px solid #ccc; border-radius: 4px;">
+  </a>
+  <br>
+  <a href="https://youtu.be/iCftl9E8PK0">Watch the full demo on YouTube</a>
+</p>
 
 ## Features
 
@@ -15,7 +19,7 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 - **No .NET, no COM boilerplate, automatic registration.** The RTD server registers itself to `HKCU` on load, no admin rights needed.
 - **Custom Excel functions** like `=NATS.SUB("prices.gbp")` and `=NATS.PUB("commands.trade", A1)` so users never need to think about raw `=RTD(...)` syntax.
 - **Configurable server addresses.** Single URL or cluster failover via `config.json`.
-- **Type hints and JSON extraction.** `=NATS.SUB("ticker.AAPL", "$.price")` parses JSON payloads and returns native Excel types — numbers, bools, strings — ready for formulas and charts.
+- **Type hints and JSON extraction.** `=NATS.SUB("ticker.AAPL", "$.price")` parses JSON payloads and returns native Excel types - numbers, bools, strings - ready for formulas and charts.
 - **Designed for throughput.** Arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free handoff from the nats.c thread pool to Excel's RTD polling.
 
 ## Usage in Excel
@@ -30,7 +34,7 @@ Or the raw RTD call:
 =RTD("zigxll.connectors.nats", , "my.subject")
 ```
 
-Requires a running NATS server. By default connects to `127.0.0.1:4222` — see [Configuration](#configuration) to change this.
+Requires a running NATS server. By default connects to `127.0.0.1:4222` - see [Configuration](#configuration) to change this.
 
 ### RTD throttle interval
 
@@ -146,10 +150,26 @@ RTD servers are registered automatically when the XLL is loaded into Excel (writ
 | `=NATS.SUB("subject")` | Subscribe to a NATS subject (RTD wrapper) |
 | `=NATS.SUB("subject", "type")` | Subscribe with a type hint (see below) |
 | `=NATS.PUB("subject", "payload")` | Publish a message to a NATS subject |
+| `=NATS.INFO()` | Connection info and statistics (spills a 2-column matrix) |
 
-### NATS.PUB — reactive publishing
+### Type hints
 
-`NATS.PUB` publishes a message to NATS and returns the payload on success. Because it's a regular Excel function, it **re-publishes automatically whenever its input cells change** — making it reactive.
+The optional second argument to `NATS.SUB` controls how the received payload is interpreted:
+
+| Usage | Behavior |
+|---|---|
+| `=NATS.SUB("prices.BTC")` | Auto: duck-types - tries bool, int, float, falls back to string |
+| `=NATS.SUB("prices.BTC", "number")` | Forces numeric coercion, `#VALUE!` if not parseable |
+| `=NATS.SUB("flags.active", "bool")` | Forces bool (`"true"`/`"false"`), `#VALUE!` otherwise |
+| `=NATS.SUB("data.raw", "string")` | Always string, no coercion |
+| `=NATS.SUB("ticker.AAPL", "$.price")` | Parses JSON payload, extracts `price` field, type from JSON |
+| `=NATS.SUB("ticker.AAPL", "$.quote.last")` | Nested dot-path: `{"quote":{"last":142.5}}` → `142.5` as double |
+
+When omitted, the default is `auto` - values that look like numbers or booleans are returned as native Excel types, enabling direct use in formulas and charts without manual conversion.
+
+### NATS.PUB - reactive publishing
+
+`NATS.PUB` publishes a message to NATS and displays `PUB: <subject>` on success. Because it's a regular Excel function, it **re-publishes automatically whenever its input cells change** - making it reactive.
 
 ```
 =NATS.PUB("commands.set-target", B2)
@@ -161,20 +181,17 @@ The connection is shared with `NATS.SUB`. If no RTD subscriptions are active, `N
 
 Returns `#VALUE!` if not connected or publish fails.
 
-### Type hints
+### NATS.INFO - connection info and statistics
 
-The optional second argument to `NATS.SUB` controls how the received payload is interpreted:
+`NATS.INFO` returns a spilling 2-column matrix with connection metadata and message statistics from nats.c. Useful for dashboards and debugging.
 
-| Usage | Behavior |
-|---|---|
-| `=NATS.SUB("prices.BTC")` | Auto: duck-types — tries bool, int, float, falls back to string |
-| `=NATS.SUB("prices.BTC", "number")` | Forces numeric coercion, `#VALUE!` if not parseable |
-| `=NATS.SUB("flags.active", "bool")` | Forces bool (`"true"`/`"false"`), `#VALUE!` otherwise |
-| `=NATS.SUB("data.raw", "string")` | Always string, no coercion |
-| `=NATS.SUB("ticker.AAPL", "$.price")` | Parses JSON payload, extracts `price` field, type from JSON |
-| `=NATS.SUB("ticker.AAPL", "$.quote.last")` | Nested dot-path: `{"quote":{"last":142.5}}` → `142.5` as double |
+```
+=NATS.INFO()
+```
 
-When omitted, the default is `auto` — values that look like numbers or booleans are returned as native Excel types, enabling direct use in formulas and charts without manual conversion.
+<img src="doc/info.png" alt="NATS.INFO output in Excel" width="280">
+
+Returns "not connected" if no connection is active.
 
 ## Architecture
 

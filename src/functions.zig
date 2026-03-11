@@ -1,5 +1,6 @@
 const std = @import("std");
 const xll = @import("xll");
+const xl = xll.xl;
 const ExcelFunction = xll.ExcelFunction;
 const ParamMeta = xll.ParamMeta;
 const nats = @cImport(@cInclude("nats.h"));
@@ -47,6 +48,109 @@ pub const nats_pub = ExcelFunction(.{
     .func = natsPubFunc,
 });
 
+// Connection info and statistics.
+// =NATS.INFO() → returns a 2-column matrix with connection metadata and stats.
+pub const nats_info = ExcelFunction(.{
+    .name = "NATS.INFO",
+    .description = "Show NATS connection info and statistics",
+    .category = "NATS",
+    .thread_safe = false,
+    .params = &[_]ParamMeta{},
+    .func = natsInfoFunc,
+});
+
+fn natsInfoFunc() !*xl.XLOPER12 {
+    const conn_opaque = nats_conn.getConnection();
+    if (conn_opaque == null) {
+        const result = try allocator.create(xl.XLOPER12);
+        const cell = try toXlCell(strCell("not connected"));
+        result.* = .{
+            .xltype = xl.xltypeStr | xl.xlbitDLLFree,
+            .val = cell.val,
+        };
+        return result;
+    }
+    const conn: *nats.natsConnection = @ptrCast(conn_opaque.?);
+
+    // Gather stats
+    var stats: ?*nats.natsStatistics = null;
+    if (nats.natsStatistics_Create(&stats) != nats.NATS_OK) return error.StatsFailed;
+    defer nats.natsStatistics_Destroy(stats);
+
+    if (nats.natsConnection_GetStats(conn, stats) != nats.NATS_OK) return error.StatsFailed;
+
+    var in_msgs: u64 = 0;
+    var in_bytes: u64 = 0;
+    var out_msgs: u64 = 0;
+    var out_bytes: u64 = 0;
+    var reconnects: u64 = 0;
+    _ = nats.natsStatistics_GetCounts(stats, &in_msgs, &in_bytes, &out_msgs, &out_bytes, &reconnects);
+
+    // Gather connection info
+    var url_buf: [256]u8 = undefined;
+    var server_id_buf: [256]u8 = undefined;
+    _ = nats.natsConnection_GetConnectedUrl(conn, &url_buf, url_buf.len);
+    _ = nats.natsConnection_GetConnectedServerId(conn, &server_id_buf, server_id_buf.len);
+
+    const version = std.mem.span(nats.nats_GetVersion());
+    const url = std.mem.sliceTo(&url_buf, 0);
+    const server_id = std.mem.sliceTo(&server_id_buf, 0);
+
+    // Build rows: [label, value] pairs
+    const rows = [_][2]Cell{
+        .{ strCell("nats.c"), strCell(version) },
+        .{ strCell("url"), strCell(url) },
+        .{ strCell("server_id"), strCell(server_id) },
+        .{ strCell("in_msgs"), numCell(@floatFromInt(in_msgs)) },
+        .{ strCell("in_bytes"), numCell(@floatFromInt(in_bytes)) },
+        .{ strCell("out_msgs"), numCell(@floatFromInt(out_msgs)) },
+        .{ strCell("out_bytes"), numCell(@floatFromInt(out_bytes)) },
+        .{ strCell("reconnects"), numCell(@floatFromInt(reconnects)) },
+    };
+
+    const num_rows = rows.len;
+    const cells = try allocator.alloc(xl.XLOPER12, num_rows * 2);
+    for (0..num_rows) |r| {
+        cells[r * 2] = try toXlCell(rows[r][0]);
+        cells[r * 2 + 1] = try toXlCell(rows[r][1]);
+    }
+
+    const result = try allocator.create(xl.XLOPER12);
+    result.* = .{
+        .xltype = xl.xltypeMulti | xl.xlbitDLLFree,
+        .val = .{ .array = .{
+            .lparray = cells.ptr,
+            .rows = @intCast(num_rows),
+            .columns = 2,
+        } },
+    };
+    return result;
+}
+
+const Cell = union(enum) { str: []const u8, num: f64 };
+
+fn strCell(s: []const u8) Cell {
+    return .{ .str = s };
+}
+
+fn numCell(n: f64) Cell {
+    return .{ .num = n };
+}
+
+fn toXlCell(cell: Cell) !xl.XLOPER12 {
+    switch (cell) {
+        .num => |n| return .{ .xltype = xl.xltypeNum, .val = .{ .num = n } },
+        .str => |s| {
+            const utf16_len = std.unicode.utf8CountCodepoints(s) catch return error.InvalidUtf8;
+            const buf = try allocator.alloc(u16, utf16_len + 2);
+            buf[0] = @intCast(utf16_len);
+            _ = std.unicode.utf8ToUtf16Le(buf[1 .. utf16_len + 1], s) catch return error.InvalidUtf8;
+            buf[utf16_len + 1] = 0;
+            return .{ .xltype = xl.xltypeStr, .val = .{ .str = @ptrCast(buf.ptr) } };
+        },
+    }
+}
+
 fn natsPubFunc(subject: []const u8, payload: []const u8) ![]const u8 {
     const conn: *nats.natsConnection = @ptrCast(nats_conn.getConnection() orelse return error.NotConnected);
 
@@ -56,5 +160,9 @@ fn natsPubFunc(subject: []const u8, payload: []const u8) ![]const u8 {
     const status = nats.natsConnection_Publish(conn, subject_z.ptr, payload.ptr, @intCast(payload.len));
     if (status != nats.NATS_OK) return error.PublishFailed;
 
-    return try allocator.dupe(u8, payload);
+    const prefix = "PUB: ";
+    const result = try allocator.alloc(u8, prefix.len + subject.len);
+    @memcpy(result[0..prefix.len], prefix);
+    @memcpy(result[prefix.len..], subject);
+    return result;
 }
