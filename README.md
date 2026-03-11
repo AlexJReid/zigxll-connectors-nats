@@ -70,6 +70,8 @@ To connect to [NGS](https://synadia.com/ngs) or any Synadia Cloud deployment, us
 
 This also applies to any self-hosted NATS deployment using operator/account JWTs with credentials files.
 
+<img src="doc/ngs.png" alt="Synadia Cloud showing zigxll-nats connection" width="280">
+
 ### All options
 
 | Field | Type | Description |
