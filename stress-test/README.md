@@ -6,9 +6,9 @@ Tools for stress testing the NATS Excel XLL add-in with many concurrent RTD subs
 
 ## Overview
 
-- **`generate_workbook.py`** — Generates an `.xlsx` with hundreds of `=NATS.SUB()` formulas across multiple sheets, including deliberate duplicates to exercise shared subscription paths.
-- **`publish.py`** — Publishes messages to the matching NATS subjects at a configurable rate using the `nats-py` async client.
-- **`stress-test.xlsx`** — Pre-generated workbook (200 unique subjects, 500 total RTD cells, ~60% duplicates).
+- **`generate_workbook.py`** - Generates an `.xlsx` with hundreds of `=NATS.SUB()` formulas across multiple sheets, including deliberate duplicates to exercise shared subscription paths.
+- **`publish.py`** - Publishes messages to the matching NATS subjects at a configurable rate using the `nats-py` async client.
+- **`stress-test.xlsx`** - Pre-generated workbook (200 unique subjects, 500 total RTD cells, ~60% duplicates).
 
 ## Setup
 
@@ -43,9 +43,9 @@ python generate_workbook.py --subjects 500 --cells 2000 --output big-test.xlsx
 ```
 
 The workbook contains three sheets:
-- **Stress Test** — Grid of `=NATS.SUB("stress.{category}.{id}")` formulas (10 columns).
-- **Info** — Summary of parameters.
-- **By Category** — All unique subjects sorted by category, one per row.
+- **Stress Test** - Grid of `=NATS.SUB("stress.{category}.{id}")` formulas (10 columns).
+- **Info** - Summary of parameters.
+- **By Category** - All unique subjects sorted by category, one per row.
 
 ## Publish messages
 
@@ -82,12 +82,12 @@ Each message is a decimal number string, e.g. `4821.07`.
 
 ## What to look for
 
-- **Cell update latency** — Do cells update promptly or lag behind?
-- **Excel responsiveness** — Can you still scroll/interact while cells are updating?
-- **Memory usage** — Does Excel's memory grow unbounded over time?
-- **Missed updates** — After stopping the publisher, do all cells show the final values?
-- **Duplicate handling** — Cells subscribing to the same subject should show identical values.
-- **Recovery** — Stop and restart the publisher; cells should resume updating.
+- **Cell update latency** - Do cells update promptly or lag behind?
+- **Excel responsiveness** - Can you still scroll/interact while cells are updating?
+- **Memory usage** - Does Excel's memory grow unbounded over time?
+- **Missed updates** - After stopping the publisher, do all cells show the final values?
+- **Duplicate handling** - Cells subscribing to the same subject should show identical values.
+- **Recovery** - Stop and restart the publisher; cells should resume updating.
 
 ## Prerequisites
 
