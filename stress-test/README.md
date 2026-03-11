@@ -5,7 +5,7 @@ Tools for stress testing the NATS Excel XLL add-in with many concurrent RTD subs
 ## Overview
 
 - **`generate_workbook.py`** — Generates an `.xlsx` with hundreds of `=NATS.SUB()` formulas across multiple sheets, including deliberate duplicates to exercise shared subscription paths.
-- **`publish.sh`** — Publishes messages to the matching NATS subjects at a configurable rate using the `nats` CLI.
+- **`publish.py`** — Publishes messages to the matching NATS subjects at a configurable rate using the `nats-py` async client.
 - **`stress-test.xlsx`** — Pre-generated workbook (200 unique subjects, 500 total RTD cells, ~60% duplicates).
 
 ## Setup
@@ -27,7 +27,7 @@ Typical topology:
 [Publisher machine]  -->  [NATS server]  <--  [Windows + Excel + XLL]
 ```
 
-If testing locally on one Windows box, keep in mind that the `nats pub` processes and Excel will share resources, which can skew results.
+If testing locally on one Windows box, keep in mind that the publisher and Excel will share resources, which can skew results.
 
 ## Generate the workbook
 
@@ -48,17 +48,19 @@ The workbook contains three sheets:
 ## Publish messages
 
 ```bash
+source .venv/bin/activate
+
 # Steady rate: 10 msg/s for 60 seconds (default)
-./publish.sh
+python publish.py
 
 # Higher rate, longer duration
-./publish.sh --rate 100 --duration 300
+python publish.py --rate 100 --duration 300
 
 # Burst: fire 1000 messages as fast as possible
-./publish.sh --burst 1000
+python publish.py --burst 1000
 
 # Target a remote NATS server
-./publish.sh --server nats://192.168.1.50:4222
+python publish.py --server nats://192.168.1.50:4222
 ```
 
 ### Options
@@ -70,15 +72,11 @@ The workbook contains three sheets:
 | `--duration` | 60 | Seconds to run |
 | `--payload-size` | 64 | Payload size in bytes |
 | `--burst` | 0 | Send N messages fast, then exit |
-| `--server` | (default) | NATS server URL |
+| `--server` | `nats://localhost:4222` | NATS server URL |
 
 ### Payload format
 
-Each message is JSON:
-
-```json
-{"subject":"stress.prices.0","seq":42,"ts":1710000000000,"value":1234.56}
-```
+Each message is a decimal number string, e.g. `4821.07`.
 
 ## What to look for
 
@@ -91,6 +89,6 @@ Each message is JSON:
 
 ## Prerequisites
 
-- Python 3.10+ (for workbook generation only)
-- [nats CLI](https://github.com/nats-io/natscli) (for publishing)
+- Python 3.10+
+- `pip install -r requirements.txt` (installs `openpyxl` and `nats-py`)
 - A running NATS server accessible from both publisher and Excel machines
