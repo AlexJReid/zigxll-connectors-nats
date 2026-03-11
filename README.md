@@ -56,6 +56,20 @@ If no file is found, defaults are used (`nats://127.0.0.1:4222`, no auth, no TLS
 }
 ```
 
+### NGS / Synadia Cloud
+
+To connect to [NGS](https://synadia.com/ngs) or any Synadia Cloud deployment, use the TLS variant of the XLL and a `.creds` file exported from your account:
+
+```json
+{
+  "url": "tls://connect.ngs.global",
+  "name": "zigxll-nats",
+  "credentials_file": "C:\\Users\\you\\Desktop\\ngs.creds"
+}
+```
+
+This also applies to any self-hosted NATS deployment using operator/account JWTs with credentials files.
+
 ### All options
 
 | Field | Type | Description |
