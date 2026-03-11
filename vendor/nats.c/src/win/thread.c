@@ -38,29 +38,18 @@ nats_InitOnce(natsInitOnceType *control, natsInitOnceCb cb)
 {
     (void)control; // bypass INIT_ONCE entirely
 
-    OutputDebugStringA("[nats.c] nats_InitOnce: entering (InterlockedCmpXchg path)\n");
-
     LONG prev = InterlockedCompareExchange(&gInitOnceFlag, 1, 0);
     if (prev == 2)
-    {
-        // Already initialised
-        OutputDebugStringA("[nats.c] nats_InitOnce: already done\n");
         return true;
-    }
     if (prev == 1)
     {
-        // Another thread is initialising — spin (shouldn't happen for us)
-        OutputDebugStringA("[nats.c] nats_InitOnce: waiting for other thread\n");
         while (InterlockedCompareExchange(&gInitOnceFlag, 1, 1) == 1)
             Sleep(1);
         return (gInitOnceFlag == 2);
     }
 
-    // prev == 0: we are the initialiser
-    OutputDebugStringA("[nats.c] nats_InitOnce: running callback\n");
     cb();
     InterlockedExchange(&gInitOnceFlag, 2);
-    OutputDebugStringA("[nats.c] nats_InitOnce: callback done, flag set to 2\n");
     return true;
 }
 
@@ -74,20 +63,13 @@ static unsigned __stdcall _threadStart(void* arg)
 {
   struct threadCtx *c = (struct threadCtx*) arg;
 
-  OutputDebugStringA("[nats.c] _threadStart: thread entered\n");
-
   nats_setNATSThreadKey();
-
-  OutputDebugStringA("[nats.c] _threadStart: calling entry function\n");
   c->entry(c->arg);
-
-  OutputDebugStringA("[nats.c] _threadStart: entry function returned\n");
   NATS_FREE(c);
 
   nats_ReleaseThreadMemory();
   natsLib_Release();
 
-  OutputDebugStringA("[nats.c] _threadStart: thread exiting\n");
   return 0;
 }
 
@@ -98,7 +80,6 @@ natsThread_Create(natsThread **thread, natsThreadCb cb, void *arg)
     natsThread          *t   = NULL;
     natsStatus          s    = NATS_OK;
 
-    OutputDebugStringA("[nats.c] natsThread_Create: entering\n");
     natsLib_Retain();
     ctx = (struct threadCtx*) NATS_CALLOC(1, sizeof(*ctx));
     t = (natsThread*) NATS_CALLOC(1, sizeof(natsThread));
@@ -111,14 +92,10 @@ natsThread_Create(natsThread **thread, natsThreadCb cb, void *arg)
         ctx->entry  = cb;
         ctx->arg    = arg;
 
-        OutputDebugStringA("[nats.c] natsThread_Create: calling _beginthreadex\n");
         t->t = (HANDLE) _beginthreadex(NULL, 0, _threadStart, ctx, 0, NULL);
         if (t->t == NULL)
         {
-            char dbgbuf[128];
             DWORD err = GetLastError();
-            wsprintfA(dbgbuf, "[nats.c] natsThread_Create: _beginthreadex FAILED, error=%lu\n", err);
-            OutputDebugStringA(dbgbuf);
             s = nats_setError(NATS_SYS_ERROR,
                               "_beginthreadex error: %d",
                               err);
@@ -126,7 +103,6 @@ natsThread_Create(natsThread **thread, natsThreadCb cb, void *arg)
         else
         {
             t->id = GetThreadId(t->t);
-            OutputDebugStringA("[nats.c] natsThread_Create: thread created OK\n");
         }
     }
     if (s == NATS_OK)
@@ -140,7 +116,6 @@ natsThread_Create(natsThread **thread, natsThreadCb cb, void *arg)
         natsLib_Release();
     }
 
-    OutputDebugStringA("[nats.c] natsThread_Create: returning\n");
     return s;
 }
 

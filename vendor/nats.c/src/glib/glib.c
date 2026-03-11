@@ -18,12 +18,7 @@
 #include "../util.h"
 #include "../crypto.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#define NATS_DBG(msg) OutputDebugStringA("[nats.c] " msg "\n")
-#else
 #define NATS_DBG(msg) ((void)0)
-#endif
 
 int64_t gLockSpinCount = 2000;
 

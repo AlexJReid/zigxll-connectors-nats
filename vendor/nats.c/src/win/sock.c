@@ -25,7 +25,6 @@ nats_initForOS(void)
     WSADATA wsaData;
     int     errorno;
 
-    OutputDebugStringA("[nats.c] nats_initForOS: calling WSAStartup\n");
     /* Initialize winsock */
     errorno = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (errorno != 0)
@@ -34,7 +33,6 @@ nats_initForOS(void)
         printf("FATAL: Unable to initialize winsock!\n");
         abort();
     }
-    OutputDebugStringA("[nats.c] nats_initForOS: WSAStartup OK\n");
 }
 
 

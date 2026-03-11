@@ -2,16 +2,13 @@
 //
 // Usage in Excel: =RTD("zigxll.connectors.nats", , "my.subject")
 //   or via wrapper: =NATS("my.subject")
-//
-// Connects to localhost NATS server (127.0.0.1:4222) on start.
-// Subscribes on ConnectData, unsubscribes on DisconnectData.
-// Uses vendored nats.c for a production-grade NATS client.
 
 const std = @import("std");
 const xll = @import("xll");
 const rtd = xll.rtd;
 const nats = @cImport(@cInclude("nats.h"));
 const vi = @import("value_interp.zig");
+const config = @import("config.zig");
 const win = @cImport({
     @cDefine("WIN32_LEAN_AND_MEAN", "1");
     @cInclude("windows.h");
@@ -24,54 +21,30 @@ const allocator = std.heap.c_allocator;
 /// initialising the NATS C library. Logs every step via OutputDebugString
 /// so we can see exactly where things go wrong.
 fn preflightChecks() bool {
-    rtd.debugLog("preflight: starting Win32 environment checks", .{});
-
-    // 1. Winsock — Excel may already have it, but ensure it's available
-    rtd.debugLog("preflight: checking WSAStartup", .{});
+    // Quick sanity checks for Win32 primitives that nats.c depends on.
+    // Only log on failure — success is silent.
     var wsa_data: win.WSADATA = undefined;
     const wsa_rc = win.WSAStartup(win.MAKEWORD(2, 2), &wsa_data);
     if (wsa_rc != 0) {
         rtd.debugLog("preflight: WSAStartup FAILED rc={d}", .{wsa_rc});
         return false;
     }
-    rtd.debugLog("preflight: WSAStartup OK (version {d}.{d})", .{
-        wsa_data.wVersion & 0xFF,
-        wsa_data.wVersion >> 8,
-    });
-    // Clean up — nats.c will call WSAStartup again itself
     _ = win.WSACleanup();
 
-    // 2. Critical sections (mutex primitives used by nats.c)
-    rtd.debugLog("preflight: testing CRITICAL_SECTION", .{});
     var cs: win.CRITICAL_SECTION = undefined;
     win.InitializeCriticalSection(&cs);
     win.EnterCriticalSection(&cs);
     win.LeaveCriticalSection(&cs);
     win.DeleteCriticalSection(&cs);
-    rtd.debugLog("preflight: CRITICAL_SECTION OK", .{});
 
-    // 3. Thread creation — nats.c uses _beginthreadex which wraps CreateThread
-    rtd.debugLog("preflight: testing CreateThread", .{});
-    const handle = win.CreateThread(
-        null, // default security
-        0, // default stack
-        &testThreadProc,
-        null, // no param
-        0, // run immediately
-        null, // don't need thread id
-    );
+    const handle = win.CreateThread(null, 0, &testThreadProc, null, 0, null);
     if (handle == null) {
-        const err = win.GetLastError();
-        rtd.debugLog("preflight: CreateThread FAILED err={d}", .{err});
+        rtd.debugLog("preflight: CreateThread FAILED err={d}", .{win.GetLastError()});
         return false;
     }
-    rtd.debugLog("preflight: CreateThread OK, waiting for thread", .{});
-    _ = win.WaitForSingleObject(handle, 5000); // 5s timeout
+    _ = win.WaitForSingleObject(handle, 5000);
     _ = win.CloseHandle(handle);
-    rtd.debugLog("preflight: test thread completed", .{});
 
-    // 4. TLS slots (nats.c uses TlsAlloc for per-thread error state)
-    rtd.debugLog("preflight: testing TLS", .{});
     const tls_idx = win.TlsAlloc();
     if (tls_idx == win.TLS_OUT_OF_INDEXES) {
         rtd.debugLog("preflight: TlsAlloc FAILED", .{});
@@ -79,24 +52,19 @@ fn preflightChecks() bool {
     }
     _ = win.TlsSetValue(tls_idx, null);
     _ = win.TlsFree(tls_idx);
-    rtd.debugLog("preflight: TLS OK", .{});
 
-    // 5. Heap — nats.c uses malloc/calloc/free heavily
-    rtd.debugLog("preflight: testing C heap (malloc/free)", .{});
     const test_ptr = @as(?*anyopaque, std.c.malloc(1024));
     if (test_ptr == null) {
         rtd.debugLog("preflight: malloc FAILED", .{});
         return false;
     }
     std.c.free(test_ptr);
-    rtd.debugLog("preflight: C heap OK", .{});
 
     rtd.debugLog("preflight: all checks passed", .{});
     return true;
 }
 
 fn testThreadProc(_: ?*anyopaque) callconv(.c) u32 {
-    rtd.debugLog("preflight: test thread running", .{});
     return 0;
 }
 
@@ -135,13 +103,35 @@ const NatsHandler = struct {
         }
         rtd.debugLog("NATS onStart: nats_Open succeeded", .{});
 
-        rtd.debugLog("NATS onStart: connecting to nats://127.0.0.1:4222", .{});
-        const cs = nats.natsConnection_ConnectTo(&self.nc, "nats://127.0.0.1:4222");
+        // Load config from file (or defaults)
+        const cfg = config.load();
+
+        // Create options and apply config
+        var opts: ?*nats.natsOptions = null;
+        var cs = nats.natsOptions_Create(&opts);
         if (cs != nats.NATS_OK) {
-            rtd.debugLog("NATS onStart: connect failed with status={d}", .{cs});
+            rtd.debugLog("NATS onStart: natsOptions_Create failed status={d}", .{cs});
             return;
         }
 
+        const cfg_status = config.applyOptions(@ptrCast(opts.?), &cfg);
+        if (cfg_status != nats.NATS_OK) {
+            rtd.debugLog("NATS onStart: config applyOptions failed status={d}", .{cfg_status});
+            nats.natsOptions_Destroy(opts);
+            return;
+        }
+
+        // Connect using the configured options
+        const url = cfg.effectiveUrl();
+        rtd.debugLog("NATS onStart: connecting to '{s}'", .{url});
+        cs = nats.natsConnection_Connect(&self.nc, opts);
+        if (cs != nats.NATS_OK) {
+            rtd.debugLog("NATS onStart: connect failed with status={d}", .{cs});
+            nats.natsOptions_Destroy(opts);
+            return;
+        }
+
+        nats.natsOptions_Destroy(opts);
         rtd.debugLog("NATS onStart: connected OK, nc={*}", .{self.nc.?});
     }
 

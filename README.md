@@ -4,8 +4,6 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 [Introductory blog post](https://alexjreid.dev/posts/zigxll/)
 
-> **Proof of concept.** This is an experimental demo of what's possible with ZigXLL's RTD support. It connects to a hardcoded localhost NATS server (`127.0.0.1:4222`) with no authentication, TLS, or reconnect handling. Not intended for production use yet.
-
 [![Demo video](https://img.youtube.com/vi/sWCvkbp4RcA/maxresdefault.jpg)](https://youtu.be/sWCvkbp4RcA)
 
 ## Why
@@ -28,7 +26,7 @@ Or the raw RTD call:
 =RTD("zigxll.connectors.nats", , "my.subject")
 ```
 
-Requires a NATS server running on `127.0.0.1:4222`.
+Requires a running NATS server. By default connects to `127.0.0.1:4222` — see [Configuration](#configuration) to change this.
 
 ### RTD throttle interval
 
@@ -39,6 +37,45 @@ Application.RTD.ThrottleInterval = 100
 ```
 
 Set to `0` for the fastest possible updates. This setting persists across sessions.
+
+## Configuration
+
+Connection settings are loaded from a `config.json` file. The search order is:
+
+1. Same directory as the `.xll` file
+2. `%APPDATA%\zigxll-nats\config.json`
+
+If no file is found, defaults are used (`nats://127.0.0.1:4222`, no auth, no TLS). All fields are optional.
+
+```json
+{
+  "url": "nats://myserver:4222",
+  "name": "excel-nats"
+}
+```
+
+### All options
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `url` | string | Server URL. Default `nats://127.0.0.1:4222` |
+| `servers` | string[] | Multiple server URLs for cluster failover (overrides `url`) |
+| `name` | string | Connection name (visible in NATS monitoring) |
+| `user` | string | Username for user/password auth |
+| `password` | string | Password for user/password auth |
+| `token` | string | Auth token |
+| `credentials_file` | string | Path to `.creds` file (JWT + NKey, for NATS NGS / operator mode) |
+| `nkey_public` | string | NKey public key (the `N...` string) |
+| `nkey_seed_file` | string | Path to NKey seed file (requires `nkey_public`) |
+| `tls` | bool | Enable TLS. Default `false` |
+| `tls_ca_cert` | string | Path to CA certificate file |
+| `tls_cert` | string | Path to client certificate file |
+| `tls_key` | string | Path to client private key file |
+| `tls_skip_verify` | bool | Skip server cert verification (dev only). Default `false` |
+| `connect_timeout_ms` | int | Connection timeout in milliseconds |
+| `ping_interval_ms` | int | Ping interval in milliseconds |
+| `max_reconnect` | int | Max reconnect attempts (`-1` for unlimited) |
+| `reconnect_wait_ms` | int | Wait between reconnect attempts in milliseconds |
 
 ## Building
 
@@ -124,9 +161,9 @@ Key implementation details:
 
 This is a proof of concept. The following are areas for future development:
 
-- **Authentication:** support for NATS token, user/password, and NKey/credentials-based auth
-- **TLS:** encrypted connections to NATS servers
-- **Configurable server addresses:** expose a subset of nats.c connection options instead of hardcoded `127.0.0.1:4222`
+- **~~Authentication~~:** ✅ token, user/password, NKey, and credentials file auth via `config.json`
+- **~~TLS~~:** ✅ TLS with CA cert, client certs, and skip-verify via `config.json`
+- **~~Configurable server addresses~~:** ✅ single URL or cluster failover via `config.json`
 - **JetStream:** subscribe to JetStream consumers for durable, replay-capable streams with at-least-once delivery
 - **Last value population:** populate cells with the most recent value on subscribe, so sheets aren't empty until the next publish
 - **~~Lightweight transforms~~:** ✅ type hints and JSON dot-path extraction are now supported via the second argument to `NATS.SUB`
