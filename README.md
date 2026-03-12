@@ -204,7 +204,7 @@ This is useful for rolling statistics over sensor data, tracking price movements
 =NATS.PUB("commands.set-target", B2)
 ```
 
-When `B2` changes, the new value is published to `commands.set-target` immediately. This makes it easy to build two-way Excel↔NATS workflows: subscribe to live data with `NATS.SUB`, transform it with formulas, and publish results back with `NATS.PUB`.
+When `B2` changes, the new value is published to `commands.set-target` immediately. This makes it easy to build two-way Excel-NATS systems: subscribe to live data with `NATS.SUB`, transform it with formulas, and publish results back with `NATS.PUB`. Who'd have thought, stream processing (kind of) in Excel.
 
 The connection is shared with `NATS.SUB`. If no RTD subscriptions are active, `NATS.PUB` establishes the connection lazily on first use.
 
@@ -251,6 +251,7 @@ Pre-built, signed XLLs for 64-bit Excel on Windows:
 MIT. See [LICENSE](LICENSE) for details.
 
 This project uses [nats.c](https://github.com/nats-io/nats.c) (Apache 2.0) and [ZigXLL](https://github.com/AlexJReid/zigxll) (MIT). See [NOTICE](NOTICE) for attribution.
+
 
 
 
