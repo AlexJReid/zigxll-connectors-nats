@@ -196,6 +196,8 @@ You can also select the spill range as a data source for sparklines or charts vi
 
 This is useful for rolling statistics over sensor data, tracking price movements, visualising rate-of-change, or any situation where you need recent history rather than just the latest value. The maximum window size is 4096.
 
+<img src="doc/livewin.png" alt="NATS.SUBWIN live windowed subscription in Excel" width="280">
+
 ### NATS.PUB - reactive publishing
 
 `NATS.PUB` publishes a message to NATS and displays `PUB: <subject>` on success. Because it's a regular Excel function, it **re-publishes automatically whenever its input cells change** - making it reactive.
