@@ -12,7 +12,7 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 ## Why
 
-NATS is a lightweight messaging system that acts as a convenient hub for all kinds of real-time data: IoT sensor readings, financial market prices, application metrics, logistics tracking, machine telemetry, and more. This add-in lets you tap into any of that data directly in Excel, with no code, bridging scripts, or CSV exports needed. Subscribe to live subjects, build formulas over streaming values, create charts and visualisations that update in real time, and publish commands back to NATS from cells. If your data flows through NATS, it can flow into (and out of) Excel.
+[NATS](https://nats.io) is a lightweight messaging system that acts as a convenient hub for all kinds of real-time data: IoT sensor readings, financial market prices, application metrics, logistics tracking, machine telemetry, and more. This add-in lets you tap into any of that data directly in Excel, with no code, bridging scripts, or CSV exports needed. Subscribe to live subjects, build formulas over streaming values, create charts and visualisations that update in real time, and publish commands back to NATS from cells. If your data flows through NATS, it can flow into (and out of) Excel.
 
 ## Features
 
