@@ -44,13 +44,6 @@ jobs:
       run: |
         nuget install Microsoft.ArtifactSigning.Client -OutputDirectory .\packages
 
-    - name: Set OpenSSL paths
-      shell: pwsh
-      run: |
-        $opensslDir = "C:\Program Files\OpenSSL"
-        echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
-        echo "OPENSSL_LIB_DIR=$opensslDir\lib\VC\x64\MT" >> $env:GITHUB_ENV
-
     - name: Setup Zig
       uses: mlugg/setup-zig@v2
       with:

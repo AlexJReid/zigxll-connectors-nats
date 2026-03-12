@@ -10,10 +10,7 @@ pub fn build(b: *std.Build) void {
     });
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
-    // TLS is only available when building natively on Windows (where OpenSSL is installed).
-    // Cross-compiling from macOS/Linux builds without TLS support.
-    const is_native = b.graph.host.result.os.tag == .windows;
-    const enable_tls = b.option(bool, "tls", "Enable TLS support (requires OpenSSL)") orelse is_native;
+    const enable_tls = b.option(bool, "tls", "Enable TLS support (requires OpenSSL)") orelse true;
 
     // Pass build options to Zig code
     const options = b.addOptions();
@@ -101,17 +98,13 @@ pub fn build(b: *std.Build) void {
     // Optionally set OPENSSL_LIB_DIR if libs aren't in OPENSSL_DIR\lib
     // (e.g. C:\Program Files\OpenSSL\lib\VC\x64\MT).
     if (enable_tls) {
-        const openssl_dir = std.process.getEnvVarOwned(b.allocator, "OPENSSL_DIR") catch
-            @panic("TLS enabled but OPENSSL_DIR not set. Set it to your OpenSSL installation root, or use -Dtls=false.");
-        defer b.allocator.free(openssl_dir);
+        const openssl_lib = b.path("vendor/openssl/lib");
+        const openssl_inc = b.path("vendor/openssl/include");
 
-        const lib_path: []const u8 = if (std.process.getEnvVarOwned(b.allocator, "OPENSSL_LIB_DIR")) |d| d else |_| b.fmt("{s}\\lib", .{openssl_dir});
-        const inc_path: []const u8 = b.fmt("{s}\\include", .{openssl_dir});
-
-        xll.addObjectFile(.{ .cwd_relative = b.fmt("{s}\\libssl.lib", .{lib_path}) });
-        xll.addObjectFile(.{ .cwd_relative = b.fmt("{s}\\libcrypto.lib", .{lib_path}) });
-        xll.addIncludePath(.{ .cwd_relative = inc_path });
-        user_module.addIncludePath(.{ .cwd_relative = inc_path });
+        xll.addObjectFile(openssl_lib.path(b, "libssl.lib"));
+        xll.addObjectFile(openssl_lib.path(b, "libcrypto.lib"));
+        xll.addIncludePath(openssl_inc);
+        user_module.addIncludePath(openssl_inc);
         user_module.linkSystemLibrary("crypt32", .{});
 
         // Windows cert store helper — loads system root CAs for TLS verification
