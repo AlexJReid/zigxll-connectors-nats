@@ -1,10 +1,12 @@
 const std = @import("std");
 const xll = @import("xll");
 const xl = xll.xl;
+const XLValue = xll.XLValue;
 const ExcelFunction = xll.ExcelFunction;
 const ParamMeta = xll.ParamMeta;
 const nats = @cImport(@cInclude("nats.h"));
 const nats_conn = @import("nats_conn.zig");
+const wb = @import("window_buffer.zig");
 
 const allocator = std.heap.c_allocator;
 
@@ -149,6 +151,64 @@ fn toXlCell(cell: Cell) !xl.XLOPER12 {
             return .{ .xltype = xl.xltypeStr, .val = .{ .str = @ptrCast(buf.ptr) } };
         },
     }
+}
+
+// Subscribe to a NATS subject in window mode — accumulates the last N f64 values.
+// Returns a handle string "subject#generation" that changes on each new value.
+// Use NATS.SUBWIN_VALS(handle) to read the accumulated values as a spill array.
+pub const nats_subwin = ExcelFunction(.{
+    .name = "NATS.SUBWIN",
+    .description = "Subscribe to a NATS subject and accumulate last N numeric values",
+    .category = "NATS",
+    .thread_safe = false,
+    .params = &[_]ParamMeta{
+        .{ .name = "subject", .description = "NATS subject to subscribe to" },
+        .{ .name = "n", .description = "Window size (max values to keep)" },
+    },
+    .func = natsSubwinFunc,
+});
+
+fn natsSubwinFunc(subject: []const u8, n: f64) !*xl.XLOPER12 {
+    const cap = @as(u32, @intFromFloat(@max(1, @min(n, @as(f64, wb.max_window_size)))));
+    const win_tag = std.fmt.allocPrint(allocator, "win:{d}", .{cap}) catch return XLValue.na();
+    defer allocator.free(win_tag);
+    return xll.rtd_call.subscribe("zigxll.connectors.nats", &.{ subject, win_tag });
+}
+
+// Read accumulated window values as a vertical spill array.
+// Takes the handle string returned by NATS.SUBWIN.
+pub const nats_subwin_vals = ExcelFunction(.{
+    .name = "NATS.SUBWIN.VALS",
+    .description = "Read accumulated window values as a spill array",
+    .category = "NATS",
+    .thread_safe = false,
+    .params = &[_]ParamMeta{
+        .{ .name = "handle", .description = "Handle from NATS.SUBWIN" },
+    },
+    .func = natsSubwinValsFunc,
+});
+
+fn natsSubwinValsFunc(handle: []const u8) ![][]const f64 {
+    // Parse "subject#generation" — we only need the subject part
+    const sep = std.mem.indexOfScalar(u8, handle, '#') orelse return error.InvalidHandle;
+    const subject = handle[0..sep];
+
+    const values = (try wb.snapshotOf(subject)) orelse return error.BufferNotFound;
+    defer allocator.free(values);
+
+    if (values.len == 0) {
+        // Can't return empty spill — defer above handles the free
+        return error.EmptyBuffer;
+    }
+
+    // Build Nx1 column matrix
+    const rows = try allocator.alloc([]const f64, values.len);
+    for (values, 0..) |v, i| {
+        const row = try allocator.alloc(f64, 1);
+        row[0] = v;
+        rows[i] = row;
+    }
+    return rows;
 }
 
 fn natsPubFunc(subject: []const u8, payload: []const u8) ![]const u8 {

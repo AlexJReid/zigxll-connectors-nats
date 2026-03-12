@@ -10,6 +10,10 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
   <a href="https://youtu.be/iCftl9E8PK0">Watch the full demo on YouTube</a>
 </p>
 
+## Why
+
+NATS is a lightweight messaging system that acts as a convenient hub for all kinds of real-time data: IoT sensor readings, financial market prices, application metrics, logistics tracking, machine telemetry, and more. This add-in lets you tap into any of that data directly in Excel, with no code, bridging scripts, or CSV exports needed. Subscribe to live subjects, build formulas over streaming values, create charts and visualisations that update in real time, and publish commands back to NATS from cells. If your data flows through NATS, it can flow into (and out of) Excel.
+
 ## Features
 
 - **Single small binary** (~480KB `.xll` file). Just open it in Excel, or install. (If you need tls:// connections, Win64 OpenSSL v3 is required. [Download .msi](https://slproweb.com/download/Win64OpenSSL-3_6_1.msi). This is a fairly common requirement so you may have it already.)
@@ -18,6 +22,7 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 - **No .NET framework dependencies, no COM setup, just run it** The RTD server registers itself to `HKCU` on load, no admin rights needed.
 - **Custom Excel RTD wrapper functions** like `=NATS.SUB("prices.gbp")` so users never need to think about raw `=RTD(...)` syntax. You can create your own wrapper functions to your subjects, i.e. building a subject string based on multiple, documented parameters.
 - **File-base configuration**, with `config.json` - details below.
+- **Windowed subscriptions.** `=NATS.SUBWIN("subject", 100)` accumulates the last N numeric values in a ring buffer, spilling them as a dynamic array for rolling aggregates, charts, and sparklines.
 - **Type hints and JSON extraction.** `=NATS.SUB("ticker.AAPL", "$.price")` parses JSON payloads and returns native Excel types - numbers, bools, strings - ready for formulas and charts.
 - **Designed for throughput.** Arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free handoff from the nats.c thread pool to Excel's RTD polling.
 
@@ -148,6 +153,8 @@ RTD servers are registered automatically when the XLL is loaded into Excel (writ
 |----------|-------------|
 | `=NATS.SUB("subject")` | Subscribe to a NATS subject (RTD wrapper) |
 | `=NATS.SUB("subject", "type")` | Subscribe with a type hint (see below) |
+| `=NATS.SUBWIN("subject", n)` | Subscribe and accumulate the last N numeric values |
+| `=NATS.SUBWIN.VALS(handle)` | Read accumulated values as a spilling column |
 | `=NATS.PUB("subject", "payload")` | Publish a message to a NATS subject |
 | `=NATS.INFO()` | Connection info and statistics (spills a 2-column matrix) |
 
@@ -165,6 +172,29 @@ The optional second argument to `NATS.SUB` controls how the received payload is 
 | `=NATS.SUB("ticker.AAPL", "$.quote.last")` | Nested dot-path: `{"quote":{"last":142.5}}` → `142.5` as double |
 
 When omitted, the default is `auto` - values that look like numbers or booleans are returned as native Excel types, enabling direct use in formulas and charts without manual conversion.
+
+### NATS.SUBWIN / NATS.SUBWIN.VALS - windowed subscriptions
+
+`NATS.SUBWIN` subscribes to a NATS subject and accumulates the last N numeric values in a ring buffer, rather than showing only the latest value. It returns a handle string that updates on each new message. `NATS.SUBWIN.VALS` takes that handle and returns the buffered values as a spilling column.
+
+```
+A1: =NATS.SUBWIN("sensor.temperature", 100)
+B1: =NATS.SUBWIN.VALS(A1)
+```
+
+`A1` displays a handle like `sensor.temperature#42` that changes with every new value. `B1` spills up to 100 values downward (oldest first), automatically resizing as the buffer fills. Non-numeric messages are silently dropped.
+
+Because `NATS.SUBWIN.VALS` returns a dynamic array, you can use standard Excel functions directly over the spill range:
+
+```
+C1: =AVERAGE(NATS.SUBWIN.VALS(A1))
+C2: =MAX(NATS.SUBWIN.VALS(A1))
+C3: =STDEV(NATS.SUBWIN.VALS(A1))
+```
+
+You can also select the spill range as a data source for sparklines or charts via the Excel UI, giving you a live-updating plot with no VBA.
+
+This is useful for rolling statistics over sensor data, tracking price movements, visualising rate-of-change, or any situation where you need recent history rather than just the latest value. The maximum window size is 4096.
 
 ### NATS.PUB - reactive publishing
 
