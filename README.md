@@ -4,7 +4,7 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 <p align="center">
   <a href="https://youtu.be/iCftl9E8PK0">
-    <img src="doc/demo.gif" alt="Demo video" style="border: 1px solid #ccc; border-radius: 4px;">
+    <img src="docs/images/demo.gif" alt="Demo video" style="border: 1px solid #ccc; border-radius: 4px;">
   </a>
   <br>
   <a href="https://youtu.be/iCftl9E8PK0">Watch the full demo on YouTube</a>
@@ -80,7 +80,7 @@ To connect to [NGS](https://synadia.com/ngs) or any Synadia Cloud deployment, us
 
 This also applies to any self-hosted NATS deployment using operator/account JWTs with credentials files.
 
-<img src="doc/ngs.png" alt="Synadia Cloud showing zigxll-nats connection" width="280">
+<img src="docs/images/ngs.png" alt="Synadia Cloud showing zigxll-nats connection" width="280">
 
 ### All options
 
@@ -196,7 +196,7 @@ You can also select the spill range as a data source for sparklines or charts vi
 
 This is useful for rolling statistics over sensor data, tracking price movements, visualising rate-of-change, or any situation where you need recent history rather than just the latest value. The maximum window size is 4096.
 
-<img src="doc/livewin.png" alt="NATS.SUBWIN live windowed subscription in Excel" width="280">
+<img src="docs/images/livewin.png" alt="NATS.SUBWIN live windowed subscription in Excel" width="280">
 
 ### NATS.PUB - reactive publishing
 
@@ -216,7 +216,7 @@ Returns `#VALUE!` if not connected or publish fails.
 
 `NATS.INFO` returns a spilling 2-column matrix with connection metadata and message statistics from nats.c. Useful for debugging.
 
-<img src="doc/info.png" alt="NATS.INFO output in Excel" width="280">
+<img src="docs/images/info.png" alt="NATS.INFO output in Excel" width="280">
 
 ## Architecture
 

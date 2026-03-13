@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>zigxll-connectors-nats – NATS connector for Excel</title>
+  <meta name="description" content="Stream live NATS messages into Excel cells. Subscribe, publish, and build real-time dashboards with a single XLL add-in.">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #1a1a1a;
+      --muted: #555;
+      --accent: #2563eb;
+      --accent-light: #dbeafe;
+      --border: #e5e7eb;
+      --code-bg: #f5f5f5;
+      --header-bg: #0f172a;
+      --header-fg: #f8fafc;
+      --section-alt: #fafbfc;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a;
+        --fg: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #60a5fa;
+        --accent-light: #1e3a5f;
+        --border: #334155;
+        --code-bg: #1e293b;
+        --header-bg: #020617;
+        --header-fg: #f8fafc;
+        --section-alt: #0c1322;
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--fg);
+      background: var(--bg);
+      line-height: 1.6;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Header */
+    .hero {
+      background: var(--header-bg);
+      color: var(--header-fg);
+      padding: 3rem 1.5rem 2.5rem;
+      text-align: center;
+    }
+    .hero h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .hero p { font-size: 1.1rem; color: #94a3b8; max-width: 640px; margin: 0 auto 1.5rem; }
+    .hero-buttons { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+    .hero-buttons a {
+      display: inline-block; padding: 0.6rem 1.2rem; border-radius: 6px;
+      font-weight: 600; font-size: 0.95rem; transition: opacity 0.15s;
+    }
+    .hero-buttons a:hover { text-decoration: none; opacity: 0.9; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-secondary { background: #334155; color: #e2e8f0; }
+
+    /* Container */
+    .container { max-width: 820px; margin: 0 auto; padding: 0 1.5rem; }
+
+    /* Demo */
+    .demo { text-align: center; padding: 2rem 0; }
+    .demo img { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); }
+    .demo .caption { font-size: 0.9rem; color: var(--muted); margin-top: 0.5rem; }
+
+    /* Sections */
+    section { padding: 2.5rem 0; border-top: 1px solid var(--border); }
+    section:first-of-type { border-top: none; }
+    section h2 { font-size: 1.5rem; margin-bottom: 1rem; }
+    section h3 { font-size: 1.15rem; margin: 1.5rem 0 0.5rem; }
+    section p, section li { margin-bottom: 0.6rem; }
+    section ul, section ol { padding-left: 1.4rem; }
+
+    /* Code */
+    code {
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      font-size: 0.9em; background: var(--code-bg); padding: 0.15em 0.35em;
+      border-radius: 4px;
+    }
+    pre {
+      background: var(--code-bg); padding: 1rem; border-radius: 6px;
+      overflow-x: auto; margin: 0.75rem 0 1rem; border: 1px solid var(--border);
+    }
+    pre code { background: none; padding: 0; font-size: 0.85rem; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0 1rem; font-size: 0.92rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--border); }
+    th { background: var(--code-bg); font-weight: 600; }
+
+    /* Features grid */
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; margin: 1rem 0; }
+    .feature { padding: 1rem; border: 1px solid var(--border); border-radius: 8px; }
+    .feature h4 { font-size: 1rem; margin-bottom: 0.3rem; }
+    .feature p { font-size: 0.9rem; color: var(--muted); margin: 0; }
+
+    /* Screenshots */
+    .screenshots { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1rem 0; }
+    .screenshots figure { margin: 0; text-align: center; }
+    .screenshots img { max-width: 100%; border-radius: 6px; border: 1px solid var(--border); }
+    .screenshots figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; }
+
+    /* Footer */
+    footer { border-top: 1px solid var(--border); padding: 1.5rem; text-align: center; font-size: 0.85rem; color: var(--muted); }
+    footer a { color: var(--muted); }
+
+    /* Config note */
+    .note {
+      background: var(--accent-light); border-left: 3px solid var(--accent);
+      padding: 0.75rem 1rem; border-radius: 4px; margin: 0.75rem 0;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>zigxll-connectors-nats</h1>
+  <p>Stream live NATS messages into Excel cells. Subscribe, publish, and build real-time dashboards with a single XLL add-in.</p>
+  <div class="hero-buttons">
+    <a href="https://github.com/AlexJReid/zigxll-connectors-nats/releases/latest/download/zigxll-connectors-nats-notls.xll" class="btn-primary">Download (standard)</a>
+    <a href="https://github.com/AlexJReid/zigxll-connectors-nats/releases/latest/download/zigxll-connectors-nats.xll" class="btn-primary">Download (with TLS)</a>
+    <a href="https://github.com/AlexJReid/zigxll-connectors-nats" class="btn-secondary">View on GitHub</a>
+  </div>
+</header>
+
+<main class="container">
+
+  <div class="demo">
+    <a href="https://youtu.be/iCftl9E8PK0">
+      <img src="images/demo.gif" alt="Demo of zigxll-connectors-nats in Excel">
+    </a>
+    <p class="caption"><a href="https://youtu.be/iCftl9E8PK0">Watch the full demo on YouTube</a></p>
+  </div>
+
+  <!-- Why -->
+  <section id="why">
+    <h2>Why</h2>
+    <p><a href="https://nats.io">NATS</a> is a lightweight messaging system that acts as a convenient hub for all kinds of real-time data: IoT sensor readings, financial market prices, application metrics, logistics tracking, machine telemetry, and more. This add-in lets you tap into any of that data directly in Excel, with no code, bridging scripts, or CSV exports needed.</p>
+    <p>Subscribe to live subjects, build formulae over streaming values, create charts and visualisations that update in real time, and publish commands back to NATS from cells. If your data flows through NATS, it can flow into (and out of) Excel.</p>
+  </section>
+
+  <!-- Features -->
+  <section id="features">
+    <h2>Features</h2>
+    <div class="features">
+      <div class="feature">
+        <h4>Single small binary</h4>
+        <p>Around 480 KB <code>.xll</code> file. Just open it in Excel, or install. No .NET framework, no COM setup, no admin rights.</p>
+      </div>
+      <div class="feature">
+        <h4>Built on nats.c</h4>
+        <p>The official, battle-tested NATS C client. Supports TLS, NKey, token, and credentials file authentication out of the box.</p>
+      </div>
+      <div class="feature">
+        <h4>Subscribe and publish</h4>
+        <p><code>=NATS.SUB("prices.gbp")</code> to subscribe, <code>=NATS.PUB("cmd", B2)</code> to publish. More capabilities on the way.</p>
+      </div>
+      <div class="feature">
+        <h4>Friendly wrapper functions</h4>
+        <p>Custom Excel RTD wrapper functions so users never need raw <code>=RTD(...)</code> syntax.</p>
+      </div>
+      <div class="feature">
+        <h4>Windowed subscriptions</h4>
+        <p><code>=NATS.SUBWIN("subject", 100)</code> accumulates the last N numeric values for rolling aggregates, charts, and sparklines.</p>
+      </div>
+      <div class="feature">
+        <h4>Type hints and JSON extraction</h4>
+        <p><code>=NATS.SUB("ticker.AAPL", "$.price")</code> parses JSON payloads and returns native Excel types, ready for formulae.</p>
+      </div>
+      <div class="feature">
+        <h4>Designed for throughput</h4>
+        <p>Arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free handoff from the nats.c thread pool.</p>
+      </div>
+      <div class="feature">
+        <h4>File-based configuration</h4>
+        <p>Simple <code>config.json</code> for server addresses, authentication, TLS, and connection settings.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Getting started -->
+  <section id="getting-started">
+    <h2>Getting started</h2>
+    <ol>
+      <li>Download one of the XLL files above (standard or TLS variant).</li>
+      <li>You may need to unblock it: <a href="https://support.microsoft.com/en-gb/topic/excel-is-blocking-untrusted-xll-add-ins-by-default-1e3752e2-1177-4444-a807-7b700266a6fb">Excel is blocking untrusted XLL add-ins</a>.</li>
+      <li>Double-click the <code>.xll</code> file to load it into Excel.</li>
+      <li>Ensure a NATS server is running. By default the add-in connects to <code>127.0.0.1:4222</code>.</li>
+    </ol>
+
+    <div class="note">
+      The TLS variant requires <a href="https://slproweb.com/products/Win32OpenSSL.html">Win64 OpenSSL v3</a> (64-bit) to be installed. This is a fairly common requirement, so you may already have it.
+    </div>
+
+    <h3>Basic usage</h3>
+    <pre><code>=NATS.SUB("my.subject")</code></pre>
+    <p>Or the raw RTD call:</p>
+    <pre><code>=RTD("zigxll.connectors.nats", , "my.subject")</code></pre>
+
+    <h3>RTD throttle interval</h3>
+    <p>Excel throttles RTD updates via <code>Application.RTD.ThrottleInterval</code>, which defaults to 2000 ms. For higher update rates, lower it in the VBA Immediate Window (<code>Alt+F11</code>, then <code>Ctrl+G</code>):</p>
+    <pre><code>Application.RTD.ThrottleInterval = 100</code></pre>
+    <p>Set to <code>0</code> for the fastest possible updates. This setting persists across sessions.</p>
+  </section>
+
+  <!-- Excel functions -->
+  <section id="functions">
+    <h2>Excel functions</h2>
+    <table>
+      <thead><tr><th>Function</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>=NATS.SUB("subject")</code></td><td>Subscribe to a NATS subject (RTD wrapper)</td></tr>
+        <tr><td><code>=NATS.SUB("subject", "type")</code></td><td>Subscribe with a type hint (see below)</td></tr>
+        <tr><td><code>=NATS.SUBWIN("subject", n)</code></td><td>Subscribe and accumulate the last N numeric values</td></tr>
+        <tr><td><code>=NATS.SUBWIN.VALS(handle)</code></td><td>Read accumulated values as a spilling column</td></tr>
+        <tr><td><code>=NATS.PUB("subject", "payload")</code></td><td>Publish a message to a NATS subject</td></tr>
+        <tr><td><code>=NATS.INFO()</code></td><td>Connection info and statistics (spills a 2-column matrix)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Type hints</h3>
+    <p>The optional second argument to <code>NATS.SUB</code> controls how the received payload is interpreted:</p>
+    <table>
+      <thead><tr><th>Usage</th><th>Behaviour</th></tr></thead>
+      <tbody>
+        <tr><td><code>=NATS.SUB("prices.BTC")</code></td><td>Auto: duck-types. Tries bool, int, float, falls back to string.</td></tr>
+        <tr><td><code>=NATS.SUB("prices.BTC", "number")</code></td><td>Forces numeric coercion. <code>#VALUE!</code> if not parseable.</td></tr>
+        <tr><td><code>=NATS.SUB("flags.active", "bool")</code></td><td>Forces bool (<code>"true"</code>/<code>"false"</code>). <code>#VALUE!</code> otherwise.</td></tr>
+        <tr><td><code>=NATS.SUB("data.raw", "string")</code></td><td>Always string, no coercion.</td></tr>
+        <tr><td><code>=NATS.SUB("ticker.AAPL", "$.price")</code></td><td>Parses JSON payload, extracts <code>price</code> field, type from JSON.</td></tr>
+        <tr><td><code>=NATS.SUB("ticker.AAPL", "$.quote.last")</code></td><td>Nested dot-path: <code>{"quote":{"last":142.5}}</code> returns <code>142.5</code> as double.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Windowed subscriptions</h3>
+    <p><code>NATS.SUBWIN</code> subscribes to a NATS subject and accumulates the last N numeric values in a ring buffer, rather than showing only the latest value. It returns a handle string that updates on each new message. <code>NATS.SUBWIN.VALS</code> takes that handle and returns the buffered values as a spilling column.</p>
+    <pre><code>A1: =NATS.SUBWIN("sensor.temperature", 100)
+B1: =NATS.SUBWIN.VALS(A1)</code></pre>
+    <p><code>A1</code> displays a handle like <code>sensor.temperature#42</code> that changes with every new value. <code>B1</code> spills up to 100 values downward (oldest first), automatically resizing as the buffer fills. Non-numeric messages are silently dropped.</p>
+    <p>Because <code>NATS.SUBWIN.VALS</code> returns a dynamic array, you can use standard Excel functions directly over the spill range:</p>
+    <pre><code>C1: =AVERAGE(NATS.SUBWIN.VALS(A1))
+C2: =MAX(NATS.SUBWIN.VALS(A1))
+C3: =STDEV(NATS.SUBWIN.VALS(A1))</code></pre>
+    <p>You can also select the spill range as a data source for sparklines or charts via the Excel UI, giving you a live-updating plot with no VBA. The maximum window size is 4096.</p>
+
+    <div class="screenshots">
+      <figure>
+        <img src="images/livewin.png" alt="Windowed subscription in Excel">
+        <figcaption>NATS.SUBWIN with live sparklines</figcaption>
+      </figure>
+      <figure>
+        <img src="images/info.png" alt="NATS.INFO output in Excel">
+        <figcaption>NATS.INFO connection details</figcaption>
+      </figure>
+    </div>
+
+    <h3>Reactive publishing</h3>
+    <p><code>NATS.PUB</code> publishes a message to NATS and displays <code>PUB: &lt;subject&gt;</code> on success. Because it is a regular Excel function, it re-publishes automatically whenever its input cells change, making it reactive.</p>
+    <pre><code>=NATS.PUB("commands.set-target", B2)</code></pre>
+    <p>When <code>B2</code> changes, the new value is published to <code>commands.set-target</code> immediately. This makes it straightforward to build two-way Excel/NATS systems: subscribe to live data with <code>NATS.SUB</code>, transform it with formulae, and publish results back with <code>NATS.PUB</code>.</p>
+    <p>The connection is shared with <code>NATS.SUB</code>. If no RTD subscriptions are active, <code>NATS.PUB</code> establishes the connection lazily on first use. Returns <code>#VALUE!</code> if not connected or publish fails.</p>
+  </section>
+
+  <!-- Configuration -->
+  <section id="configuration">
+    <h2>Configuration</h2>
+    <p>Connection settings are loaded from a <code>config.json</code> file. The search order is:</p>
+    <ol>
+      <li>Same directory as the <code>.xll</code> file</li>
+      <li><code>%APPDATA%\zigxll-nats\config.json</code></li>
+    </ol>
+    <p>If no file is found, defaults are used (<code>nats://127.0.0.1:4222</code>, no auth, no TLS). All fields are optional.</p>
+
+    <pre><code>{
+  "url": "nats://myserver:4222",
+  "name": "excel-nats"
+}</code></pre>
+
+    <h3>NGS / Synadia Cloud</h3>
+    <p>To connect to <a href="https://synadia.com/ngs">NGS</a> or any Synadia Cloud deployment, use the TLS variant of the XLL and a <code>.creds</code> file exported from your account:</p>
+    <pre><code>{
+  "url": "tls://connect.ngs.global",
+  "name": "zigxll-nats",
+  "credentials_file": "C:\\Users\\you\\Desktop\\ngs.creds"
+}</code></pre>
+    <p>This also applies to any self-hosted NATS deployment using operator/account JWTs with credentials files.</p>
+    <figure style="margin:1rem 0; text-align:center;">
+      <img src="images/ngs.png" alt="Synadia Cloud showing zigxll-nats connection" style="max-width:320px; border-radius:6px; border:1px solid var(--border);">
+    </figure>
+
+    <h3>All options</h3>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>url</code></td><td>string</td><td>Server URL. Default <code>nats://127.0.0.1:4222</code></td></tr>
+        <tr><td><code>servers</code></td><td>string[]</td><td>Multiple server URLs for cluster failover (overrides <code>url</code>)</td></tr>
+        <tr><td><code>name</code></td><td>string</td><td>Connection name (visible in NATS monitoring)</td></tr>
+        <tr><td><code>user</code></td><td>string</td><td>Username for user/password auth</td></tr>
+        <tr><td><code>password</code></td><td>string</td><td>Password for user/password auth</td></tr>
+        <tr><td><code>token</code></td><td>string</td><td>Auth token</td></tr>
+        <tr><td><code>credentials_file</code></td><td>string</td><td>Path to <code>.creds</code> file (JWT + NKey, for NATS NGS / operator mode)</td></tr>
+        <tr><td><code>nkey_public</code></td><td>string</td><td>NKey public key (the <code>N...</code> string)</td></tr>
+        <tr><td><code>nkey_seed_file</code></td><td>string</td><td>Path to NKey seed file (requires <code>nkey_public</code>)</td></tr>
+        <tr><td><code>tls</code></td><td>bool</td><td>Enable TLS (requires <a href="https://slproweb.com/products/Win32OpenSSL.html">OpenSSL for Windows</a>). Default <code>false</code></td></tr>
+        <tr><td><code>tls_ca_cert</code></td><td>string</td><td>Path to CA certificate file</td></tr>
+        <tr><td><code>tls_cert</code></td><td>string</td><td>Path to client certificate file</td></tr>
+        <tr><td><code>tls_key</code></td><td>string</td><td>Path to client private key file</td></tr>
+        <tr><td><code>tls_skip_verify</code></td><td>bool</td><td>Skip server cert verification (dev only). Default <code>false</code></td></tr>
+        <tr><td><code>connect_timeout_ms</code></td><td>int</td><td>Connection timeout in milliseconds</td></tr>
+        <tr><td><code>ping_interval_ms</code></td><td>int</td><td>Ping interval in milliseconds</td></tr>
+        <tr><td><code>max_reconnect</code></td><td>int</td><td>Max reconnect attempts (<code>-1</code> for unlimited)</td></tr>
+        <tr><td><code>reconnect_wait_ms</code></td><td>int</td><td>Wait between reconnect attempts in milliseconds</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Architecture -->
+  <section id="architecture">
+    <h2>Architecture</h2>
+    <p>The XLL embeds a vendored copy of <a href="https://github.com/nats-io/nats.c">nats.c</a>, compiled as a static library alongside the Zig source. Messages arrive on the nats.c internal thread pool via a subscription callback, which stores the latest value per topic and notifies Excel to refresh.</p>
+    <h3>Key implementation details</h3>
+    <ul>
+      <li><strong>Arena allocator</strong> for UTF-16 string conversions during Excel refresh cycles, reset once per <code>RefreshData</code> batch. Zero malloc/free churn on the hot path.</li>
+      <li><strong>Null-terminated subject copies</strong> when passing Zig slices to the nats.c C API.</li>
+      <li><strong>CRT compatibility patches</strong> for the Zig XLL build environment. <code>InitOnceExecuteOnce</code> and <code>atexit()</code> are bypassed as they can deadlock in DLLs built with Zig's CRT stubs.</li>
+    </ul>
+    <p>Built with <a href="https://ziglang.org/">Zig</a> 0.15.1 using the <a href="https://github.com/AlexJReid/zigxll">ZigXLL</a> framework. The target is <code>x86_64-windows-msvc</code>, and the project cross-compiles from macOS or Linux with the help of <a href="https://jake-shadle.github.io/xwin/">xwin</a>.</p>
+  </section>
+
+  <!-- Building -->
+  <section id="building">
+    <h2>Building from source</h2>
+    <p>Requires <a href="https://ziglang.org/">Zig</a> 0.15.1 and a checkout of <a href="https://github.com/AlexJReid/zigxll">ZigXLL</a> as a sibling directory.</p>
+    <pre><code>zig build</code></pre>
+    <p>Output: <code>zig-out/lib/zigxll-connectors-nats.xll</code></p>
+
+    <h3>Cross-compilation (macOS/Linux)</h3>
+    <p>Install <a href="https://jake-shadle.github.io/xwin/">xwin</a> to provide the Windows SDK headers and libraries:</p>
+    <pre><code># macOS
+brew install xwin
+xwin --accept-license splat --output ~/.xwin
+
+# Linux
+cargo install xwin
+xwin --accept-license splat --output ~/.xwin</code></pre>
+    <div class="note">
+      Cross-compilation does not yet support TLS (<code>-Dtls=true</code>), as it requires OpenSSL <code>.lib</code> files for the target platform to be available locally. CI builds natively on Windows with TLS enabled.
+    </div>
+  </section>
+
+  <!-- Roadmap -->
+  <section id="roadmap">
+    <h2>Roadmap</h2>
+    <ul>
+      <li><strong>JetStream:</strong> subscribe to JetStream consumers for durable, replay-capable streams with at-least-once delivery.</li>
+      <li><strong>Last value population:</strong> populate cells with the most recent value on subscribe, so sheets are not empty until the next publish.</li>
+      <li><strong>Debouncing/windowing:</strong> reduce unnecessary recalculations, e.g. round to 3 decimal places and only update the cell if the rounded value differs.</li>
+      <li><strong>Reconnect status in cells:</strong> surface connection state (connected/reconnecting/disconnected) so users can see when the link is down.</li>
+    </ul>
+  </section>
+
+  <!-- Licence -->
+  <section id="licence">
+    <h2>Licence</h2>
+    <p>MIT. See <a href="https://github.com/AlexJReid/zigxll-connectors-nats/blob/main/LICENSE">LICENCE</a> for details.</p>
+    <p>This project uses <a href="https://github.com/nats-io/nats.c">nats.c</a> (Apache 2.0) and <a href="https://github.com/AlexJReid/zigxll">ZigXLL</a> (MIT). See <a href="https://github.com/AlexJReid/zigxll-connectors-nats/blob/main/NOTICE">NOTICE</a> for attribution.</p>
+  </section>
+
+</main>
+
+<footer>
+  <p>zigxll-connectors-nats &middot; <a href="https://github.com/AlexJReid/zigxll-connectors-nats">GitHub</a> &middot; MIT Licence</p>
+</footer>
+
+</body>
+</html>
