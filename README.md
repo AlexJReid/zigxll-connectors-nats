@@ -73,7 +73,7 @@ To connect to [NGS](https://synadia.com/ngs) or any Synadia Cloud deployment, us
 ```json
 {
   "url": "tls://connect.ngs.global",
-  "name": "zigxll-nats",
+  "name": "zigxll-nats-test",
   "credentials_file": "C:\\Users\\you\\Desktop\\ngs.creds"
 }
 ```
