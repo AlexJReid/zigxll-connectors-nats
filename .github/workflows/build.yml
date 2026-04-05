@@ -21,14 +21,6 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Fetch nats.c
-      run: |
-        curl -sL https://github.com/nats-io/nats.c/archive/refs/tags/v${{ env.NATS_C_VERSION }}.tar.gz -o nats.c.tar.gz
-        mkdir -p vendor
-        tar xzf nats.c.tar.gz -C vendor
-        mv vendor/nats.c-${{ env.NATS_C_VERSION }} vendor/nats.c
-      shell: bash
-
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
       with:

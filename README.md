@@ -12,7 +12,7 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 
 ## Why
 
-[NATS](https://nats.io) is a lightweight messaging system that acts as a convenient hub for all kinds of real-time data: IoT sensor readings, financial market prices, application metrics, logistics tracking, machine telemetry, and more. This add-in lets you tap into any of that data directly in Excel, with no code, bridging scripts, or CSV exports needed. Subscribe to live subjects, build formulas over streaming values, create charts and visualisations that update in real time, and publish commands back to NATS from cells. If your data flows through NATS, it can flow into (and out of) Excel.
+[NATS](https://nats.io) is a lightweight messaging system that acts as a convenient hub for all kinds of real-time data: IoT sensor readings, financial market prices, application metrics, logistics tracking, machine telemetry, and more. This add-in lets you tap into any of that data directly in Excel, with no code, bridging scripts, or CSV exports needed. Subscribe to live subjects, build formulas over streaming values, create charts and visualisations that update in real time, and publish computed values back to NATS from cells. If your data flows through NATS, it can flow into (and out of) Excel.
 
 ## Features
 
@@ -21,10 +21,10 @@ A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigx
 - **Supports PUB snd SUB**, with more on the way.
 - **No .NET framework dependencies, no COM setup, just run it** The RTD server registers itself to `HKCU` on load, no admin rights needed.
 - **Custom Excel RTD wrapper functions** like `=NATS.SUB("prices.gbp")` so users never need to think about raw `=RTD(...)` syntax. You can create your own wrapper functions to your subjects, i.e. building a subject string based on multiple, documented parameters.
-- **File-base configuration**, with `config.json` - details below.
+- **File-based configuration**, with `config.json` - details below.
 - **Windowed subscriptions.** `=NATS.SUBWIN("subject", 100)` accumulates the last N numeric values in a ring buffer, spilling them as a dynamic array for rolling aggregates, charts, and sparklines.
 - **Type hints and JSON extraction.** `=NATS.SUB("ticker.AAPL", "$.price")` parses JSON payloads and returns native Excel types - numbers, bools, strings - ready for formulas and charts.
-- **Designed for throughput.** Arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free handoff from the nats.c thread pool to Excel's RTD polling.
+- **Designed for high throughput.** Arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free handoff from the nats.c thread pool to Excel's RTD polling.
 
 ## Usage in Excel
 
@@ -73,7 +73,7 @@ To connect to [NGS](https://synadia.com/ngs) or any Synadia Cloud deployment, us
 ```json
 {
   "url": "tls://connect.ngs.global",
-  "name": "zigxll-nats",
+  "name": "zigxll-nats-test",
   "credentials_file": "C:\\Users\\you\\Desktop\\ngs.creds"
 }
 ```
