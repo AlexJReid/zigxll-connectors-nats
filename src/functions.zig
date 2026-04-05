@@ -37,7 +37,7 @@ fn natsSubFunc(subject: []const u8, type_hint: ?[]const u8) !*xll.xl.XLOPER12 {
 }
 
 // Publish a message to a NATS subject.
-// =NATS.PUB("subject", "payload") → returns the payload on success, #N/A if not connected.
+// =NATS.PUB("subject", value) → publishes value as UTF-8 text; numbers/bools are coerced to string.
 pub const nats_pub = ExcelFunction(.{
     .name = "NATS.PUB",
     .description = "Publish a message to a NATS subject",
@@ -45,7 +45,7 @@ pub const nats_pub = ExcelFunction(.{
     .thread_safe = false,
     .params = &[_]ParamMeta{
         .{ .name = "subject", .description = "NATS subject to publish to" },
-        .{ .name = "payload", .description = "Message payload to publish" },
+        .{ .name = "payload", .description = "Message payload (string, number, or bool — all sent as UTF-8 text)" },
     },
     .func = natsPubFunc,
 });
@@ -211,13 +211,31 @@ fn natsSubwinValsFunc(handle: []const u8) ![][]const f64 {
     return rows;
 }
 
-fn natsPubFunc(subject: []const u8, payload: []const u8) ![]const u8 {
+fn natsPubFunc(subject: []const u8, payload: xll.XLValue) ![]const u8 {
     const conn: *nats.natsConnection = @ptrCast(nats_conn.getConnection() orelse return error.NotConnected);
+
+    const payload_str = blk: {
+        if (payload.is_str()) {
+            break :blk try payload.as_utf8str();
+        } else if (payload.is_num()) {
+            const n = try payload.as_double();
+            // Whole numbers that fit in i64: no decimal point.
+            if (n == @trunc(n) and @abs(n) < 1e15) {
+                break :blk try std.fmt.allocPrint(allocator, "{d}", .{@as(i64, @intFromFloat(n))});
+            }
+            break :blk try std.fmt.allocPrint(allocator, "{d}", .{n});
+        } else if (payload.is_bool()) {
+            break :blk try allocator.dupe(u8, if (try payload.as_bool()) "true" else "false");
+        } else {
+            return error.UnsupportedPayloadType;
+        }
+    };
+    defer allocator.free(payload_str);
 
     const subject_z = try allocator.dupeZ(u8, subject);
     defer allocator.free(subject_z);
 
-    const status = nats.natsConnection_Publish(conn, subject_z.ptr, payload.ptr, @intCast(payload.len));
+    const status = nats.natsConnection_Publish(conn, subject_z.ptr, payload_str.ptr, @intCast(payload_str.len));
     if (status != nats.NATS_OK) return error.PublishFailed;
 
     const prefix = "PUB: ";
