@@ -1,13 +1,15 @@
 # zigxll-connectors-nats
 
-A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigxll). Subscribes to NATS subjects with `=NATS.SUB("subject")` to stream published messages into Excel cells, via RTD. Can also publish with `=NATS.PUB("subject", cell-ref)`. Read on for usage instructions.
+A NATS connector for Excel built with [ZigXLL](https://github.com/AlexJReid/zigxll). 
+
+Subscribes to NATS subjects with `=NATS.SUB("subject")` to stream published messages into Excel cells, via RTD. Can also publish with `=NATS.PUB("subject", cell-ref)`. Read on for usage instructions.
 
 <p align="center">
   <a href="https://youtu.be/iCftl9E8PK0">
     <img src="docs/images/demo.gif" alt="Demo video" style="border: 1px solid #ccc; border-radius: 4px;">
   </a>
   <br>
-  <a href="https://youtu.be/iCftl9E8PK0">Watch the full demo on YouTube</a>
+  <a href="https://youtu.be/iCftl9E8PK0">Watch the full demo on YouTube</a> | <a href="https://alexjreid.dev/posts/excel-the-accidental-stream-processor/">Blog post</a>
 </p>
 
 ## Why
