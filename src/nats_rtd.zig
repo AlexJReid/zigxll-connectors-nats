@@ -16,6 +16,7 @@ const nats_conn = @import("nats_conn.zig");
 const wb = @import("window_buffer.zig");
 
 const allocator = std.heap.c_allocator;
+const mu_io = std.Options.debug_io;
 
 const TypeHint = vi.TypeHint;
 
@@ -33,7 +34,7 @@ const NatsHandler = struct {
     subject_map: std.StringHashMap(i32) = std.StringHashMap(i32).init(allocator),
     // topic_ids that are in window mode (value = subject for handle formatting)
     window_topics: std.AutoHashMap(i32, []const u8) = std.AutoHashMap(i32, []const u8).init(allocator),
-    mu: std.Thread.Mutex = .{},
+    mu: std.Io.Mutex = std.Io.Mutex.init,
     // Arena for utf16 conversions — reset once per RefreshData batch
     refresh_arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(std.heap.c_allocator),
 
@@ -70,8 +71,8 @@ const NatsHandler = struct {
             return;
         }
 
-        self.mu.lock();
-        defer self.mu.unlock();
+        self.mu.lock(mu_io) catch {};
+        defer self.mu.unlock(mu_io);
 
         if (sub) |s| self.subs.put(topic_id, s) catch {};
         self.values.put(topic_id, &.{}) catch {};
@@ -97,8 +98,8 @@ const NatsHandler = struct {
     }
 
     pub fn onDisconnect(self: *NatsHandler, _: *rtd.RtdContext, topic_id: i32, _: usize) void {
-        self.mu.lock();
-        defer self.mu.unlock();
+        self.mu.lock(mu_io) catch {};
+        defer self.mu.unlock(mu_io);
 
         if (self.subs.fetchRemove(topic_id)) |kv| {
             _ = nats.natsSubscription_Unsubscribe(kv.value);
@@ -136,8 +137,8 @@ const NatsHandler = struct {
     }
 
     pub fn onRefreshValue(self: *NatsHandler, _: *rtd.RtdContext, topic_id: i32) rtd.RtdValue {
-        self.mu.lock();
-        defer self.mu.unlock();
+        self.mu.lock(mu_io) catch {};
+        defer self.mu.unlock(mu_io);
 
         // Window mode: return handle string "subject#generation"
         if (self.window_topics.get(topic_id)) |subject| {
@@ -159,7 +160,7 @@ const NatsHandler = struct {
     pub fn onTerminate(self: *NatsHandler, _: *rtd.RtdContext) void {
         rtd.debugLog("NATS onTerminate: entering", .{});
 
-        self.mu.lock();
+        self.mu.lock(mu_io) catch {};
 
         // Destroy subscription handles
         rtd.debugLog("NATS onTerminate: destroying {d} subscriptions", .{self.subs.count()});
@@ -203,7 +204,7 @@ const NatsHandler = struct {
         self.refresh_arena.deinit();
 
         self.nc = null;
-        self.mu.unlock();
+        self.mu.unlock(mu_io);
 
         // Close the shared connection
         nats_conn.close();
@@ -233,8 +234,8 @@ const NatsHandler = struct {
         const payload: [*]const u8 = @ptrCast(data_ptr.?);
         const copy = allocator.dupe(u8, payload[0..data_len]) catch return;
 
-        self.mu.lock();
-        defer self.mu.unlock();
+        self.mu.lock(mu_io) catch {};
+        defer self.mu.unlock(mu_io);
 
         const topic_id = self.subject_map.get(subject) orelse {
             allocator.free(copy);

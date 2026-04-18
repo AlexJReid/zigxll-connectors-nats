@@ -69,26 +69,26 @@ pub fn build(b: *std.Build) void {
         "-DNATS_STATIC",
     };
 
-    xll.addCSourceFiles(.{
+    xll.root_module.addCSourceFiles(.{
         .root = nats_src,
         .files = nats_core_sources,
         .flags = nats_c_flags,
     });
-    xll.addCSourceFiles(.{
+    xll.root_module.addCSourceFiles(.{
         .root = nats_src,
         .files = nats_glib_sources,
         .flags = nats_c_flags,
     });
-    xll.addCSourceFiles(.{
+    xll.root_module.addCSourceFiles(.{
         .root = nats_src,
         .files = nats_win_sources,
         .flags = nats_c_flags,
     });
     // Include paths for nats.c internal headers
-    xll.addIncludePath(nats_src);
-    xll.addIncludePath(b.path("vendor/nats.c/src/include"));
-    xll.addIncludePath(b.path("vendor/nats.c/src/win"));
-    xll.addIncludePath(b.path("vendor/nats.c/src/glib"));
+    xll.root_module.addIncludePath(nats_src);
+    xll.root_module.addIncludePath(b.path("vendor/nats.c/src/include"));
+    xll.root_module.addIncludePath(b.path("vendor/nats.c/src/win"));
+    xll.root_module.addIncludePath(b.path("vendor/nats.c/src/glib"));
 
     // Windows system libs needed by nats.c
     user_module.linkSystemLibrary("ws2_32", .{});
@@ -101,14 +101,14 @@ pub fn build(b: *std.Build) void {
         const openssl_lib = b.path("vendor/openssl/lib");
         const openssl_inc = b.path("vendor/openssl/include");
 
-        xll.addObjectFile(openssl_lib.path(b, "libssl.lib"));
-        xll.addObjectFile(openssl_lib.path(b, "libcrypto.lib"));
-        xll.addIncludePath(openssl_inc);
+        xll.root_module.addObjectFile(openssl_lib.path(b, "libssl.lib"));
+        xll.root_module.addObjectFile(openssl_lib.path(b, "libcrypto.lib"));
+        xll.root_module.addIncludePath(openssl_inc);
         user_module.addIncludePath(openssl_inc);
         user_module.linkSystemLibrary("crypt32", .{});
 
         // Windows cert store helper — loads system root CAs for TLS verification
-        xll.addCSourceFiles(.{
+        xll.root_module.addCSourceFiles(.{
             .root = b.path("src"),
             .files = &.{"win_certs.c"},
             .flags = &.{},

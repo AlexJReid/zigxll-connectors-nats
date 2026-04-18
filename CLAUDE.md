@@ -23,7 +23,7 @@ zig fmt --check src/  # check only (CI-friendly, exits non-zero if unformatted)
 
 **Cross-compilation from macOS/Linux** requires [xwin](https://jake-shadle.github.io/xwin/) with SDK splatted to `~/.xwin`. The default target is `x86_64-windows-msvc`. No native build target exists — this always produces a Windows DLL.
 
-**Zig version:** 0.15.1
+**Zig version:** 0.16.0
 
 ## Dependencies
 

@@ -12,7 +12,8 @@ const win = @cImport({
     @cInclude("winsock2.h");
 });
 
-var mu: std.Thread.Mutex = .{};
+var mu: std.Io.Mutex = std.Io.Mutex.init;
+const mu_io = std.Options.debug_io;
 var nc: ?*nats.natsConnection = null;
 var nats_opened: bool = false;
 
@@ -20,8 +21,8 @@ var nats_opened: bool = false;
 /// Returns *anyopaque to avoid cross-cImport opaque type mismatches —
 /// callers cast to their own @cImport's natsConnection type.
 pub fn getConnection() ?*anyopaque {
-    mu.lock();
-    defer mu.unlock();
+    mu.lock(mu_io) catch {};
+    defer mu.unlock(mu_io);
 
     if (nc) |c| return @ptrCast(c);
 
@@ -73,10 +74,10 @@ pub fn getConnection() ?*anyopaque {
 
 /// Close and destroy the shared connection. Called by RTD onTerminate.
 pub fn close() void {
-    mu.lock();
+    mu.lock(mu_io) catch {};
     const c = nc;
     nc = null;
-    mu.unlock();
+    mu.unlock(mu_io);
 
     if (c) |conn| {
         rtd.debugLog("nats_conn: closing shared connection", .{});

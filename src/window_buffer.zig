@@ -66,14 +66,15 @@ pub const WindowBuffer = struct {
 // NATS.SUBWIN_VALS runs on Excel's calc thread.
 // ---------------------------------------------------------------------------
 
-var mu: std.Thread.Mutex = .{};
+var mu: std.Io.Mutex = std.Io.Mutex.init;
+const mu_io = std.Options.debug_io;
 var buffers: std.StringHashMap(WindowBuffer) = std.StringHashMap(WindowBuffer).init(allocator);
 
 /// Get or create a window buffer for `subject` with the given capacity.
 /// If a buffer already exists for this subject, returns it (ignoring capacity).
 pub fn getOrCreate(subject: []const u8, capacity: u32) !*WindowBuffer {
-    mu.lock();
-    defer mu.unlock();
+    mu.lock(mu_io) catch {};
+    defer mu.unlock(mu_io);
 
     if (buffers.getPtr(subject)) |wb| return wb;
 
@@ -86,8 +87,8 @@ pub fn getOrCreate(subject: []const u8, capacity: u32) !*WindowBuffer {
 
 /// Push a value and return the new generation. Thread-safe.
 pub fn pushValue(subject: []const u8, value: f64) ?u64 {
-    mu.lock();
-    defer mu.unlock();
+    mu.lock(mu_io) catch {};
+    defer mu.unlock(mu_io);
     if (buffers.getPtr(subject)) |wb| {
         wb.push(value);
         return wb.generation;
@@ -97,8 +98,8 @@ pub fn pushValue(subject: []const u8, value: f64) ?u64 {
 
 /// Take a snapshot of the buffer. Thread-safe. Caller must free the returned slice.
 pub fn snapshotOf(subject: []const u8) !?[]f64 {
-    mu.lock();
-    defer mu.unlock();
+    mu.lock(mu_io) catch {};
+    defer mu.unlock(mu_io);
     if (buffers.getPtr(subject)) |wb| {
         return try wb.snapshot();
     }
@@ -107,16 +108,16 @@ pub fn snapshotOf(subject: []const u8) !?[]f64 {
 
 /// Get the current generation for a subject. Returns 0 if not found.
 pub fn generation(subject: []const u8) u64 {
-    mu.lock();
-    defer mu.unlock();
+    mu.lock(mu_io) catch {};
+    defer mu.unlock(mu_io);
     if (buffers.getPtr(subject)) |w| return w.generation;
     return 0;
 }
 
 /// Remove and destroy a buffer. Called on disconnect.
 pub fn remove(subject: []const u8) void {
-    mu.lock();
-    defer mu.unlock();
+    mu.lock(mu_io) catch {};
+    defer mu.unlock(mu_io);
     if (buffers.fetchRemove(subject)) |kv| {
         var wb = kv.value;
         wb.deinit();
@@ -125,8 +126,8 @@ pub fn remove(subject: []const u8) void {
 
 /// Destroy all buffers. Called on terminate.
 pub fn deinitAll() void {
-    mu.lock();
-    defer mu.unlock();
+    mu.lock(mu_io) catch {};
+    defer mu.unlock(mu_io);
     var it = buffers.iterator();
     while (it.next()) |entry| {
         var wb = entry.value_ptr;
