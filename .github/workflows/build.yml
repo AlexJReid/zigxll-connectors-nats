@@ -8,9 +8,6 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  NATS_C_VERSION: "3.12.0"
-
 jobs:
   build:
     runs-on: windows-latest
@@ -41,19 +38,10 @@ jobs:
       with:
         version: 0.16.0
 
-    - name: Build XLL (no TLS)
-      run: zig build --release=small -Dtls=false
+    - name: Build XLL
+      run: zig build --fetch --release=small
 
-    - name: Rename no-TLS build
-      shell: pwsh
-      run: |
-        Copy-Item "zig-out\lib\zigxll-connectors-nats.xll" "zigxll-connectors-nats-notls.xll"
-
-    - name: Build XLL (with TLS)
-      run: |
-        zig build --release=small -Dtls=true
-
-    - name: Sign XLLs
+    - name: Sign XLL
       shell: pwsh
       run: |
         $dlib = Get-ChildItem -Path ".\packages" -Recurse -Filter "Azure.CodeSigning.Dlib.dll" |
@@ -74,24 +62,11 @@ jobs:
           /dmdf ".\signing-metadata.json" `
           "zig-out\lib\zigxll-connectors-nats.xll"
 
-        & $signtool sign /v /fd SHA256 `
-          /tr "http://timestamp.acs.microsoft.com" /td SHA256 `
-          /dlib "$dlib" `
-          /dmdf ".\signing-metadata.json" `
-          "zigxll-connectors-nats-notls.xll"
-
-    - name: Upload XLL artifact (TLS)
+    - name: Upload XLL artifact
       uses: actions/upload-artifact@v4
       with:
         name: zigxll-connectors-nats
         path: zig-out/lib/zigxll-connectors-nats.xll
-        if-no-files-found: error
-
-    - name: Upload XLL artifact (no TLS)
-      uses: actions/upload-artifact@v4
-      with:
-        name: zigxll-connectors-nats-notls
-        path: zigxll-connectors-nats-notls.xll
         if-no-files-found: error
 
     - name: Create release
@@ -100,7 +75,6 @@ jobs:
       with:
         files: |
           zig-out/lib/zigxll-connectors-nats.xll
-          zigxll-connectors-nats-notls.xll
         draft: false
         prerelease: false
         generate_release_notes: true

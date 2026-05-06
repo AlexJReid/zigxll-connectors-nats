@@ -12,8 +12,8 @@ Licensed under the MIT License
 
 ---
 
-nats.c
-https://github.com/nats-io/nats.c
-Copyright (c) 2015-2024 Synadia Communications Inc.
+nats.zig
+https://github.com/nats-io/nats.zig
+Copyright (c) 2025 NATS Authors
 Licensed under the Apache License, Version 2.0
 You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0

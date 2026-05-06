@@ -7,7 +7,7 @@
 // If no config file is found, defaults are used (nats://127.0.0.1:4222, no auth, no TLS).
 
 const std = @import("std");
-const nats = @cImport(@cInclude("nats.h"));
+const nats = @import("nats");
 const xll = @import("xll");
 const rtd = xll.rtd;
 const win = @cImport({
@@ -15,10 +15,7 @@ const win = @cImport({
     @cInclude("windows.h");
 });
 
-const build_options = @import("build_options");
 const allocator = std.heap.c_allocator;
-
-extern fn win_load_system_roots() ?[*:0]u8;
 
 fn isTlsUrl(url: ?[]const u8) bool {
     const u = url orelse return false;
@@ -84,226 +81,39 @@ pub const Config = struct {
     }
 };
 
-/// Call a nats C setter that takes (opts, [*c]const u8) and return the status.
-/// Handles dupeZ allocation and cleanup. Returns NATS_NO_MEMORY on alloc failure.
-fn setStrOpt(
-    opts: *nats.natsOptions,
-    value: []const u8,
-    setter: *const fn (*nats.natsOptions, [*c]const u8) callconv(.c) nats.natsStatus,
-    label: [*:0]const u8,
-) c_int {
-    const z = allocator.dupeZ(u8, value) catch return nats.NATS_NO_MEMORY;
-    defer allocator.free(z);
-    rtd.debugLog("config: {s} '{s}'", .{ label, z });
-    const s = setter(opts, z.ptr);
-    if (s != nats.NATS_OK) rtd.debugLog("config: {s} failed status={d}", .{ label, s });
-    return s;
-}
-
-/// Call a nats C setter that takes (opts, i64) and return the status.
-fn setI64Opt(
-    opts: *nats.natsOptions,
-    value: i64,
-    setter: *const fn (*nats.natsOptions, i64) callconv(.c) nats.natsStatus,
-    label: [*:0]const u8,
-) c_int {
-    rtd.debugLog("config: {s} {d}", .{ label, value });
-    const s = setter(opts, value);
-    if (s != nats.NATS_OK) rtd.debugLog("config: {s} failed status={d}", .{ label, s });
-    return s;
-}
-
-/// Apply config to a natsOptions handle. Accepts *anyopaque to avoid
-/// cross-cImport opaque type mismatches — caller passes their natsOptions ptr.
-pub fn applyOptions(opts_opaque: *anyopaque, cfg: *const Config) c_int {
-    const opts: *nats.natsOptions = @ptrCast(opts_opaque);
-    var s: c_int = nats.NATS_OK;
-
-    // Server URL(s)
+pub fn connectionUrl(cfg: *const Config) ![]const u8 {
     if (cfg.servers) |servers| {
-        if (servers.len > 0) {
-            rtd.debugLog("config: setting {d} server URLs", .{servers.len});
-            const ptrs = allocator.alloc([*c]const u8, servers.len) catch return nats.NATS_NO_MEMORY;
-            defer allocator.free(ptrs);
-            const zstrs = allocator.alloc([:0]const u8, servers.len) catch return nats.NATS_NO_MEMORY;
-            defer {
-                for (zstrs) |z| allocator.free(z);
-                allocator.free(zstrs);
-            }
-            for (servers, 0..) |srv, i| {
-                zstrs[i] = allocator.dupeZ(u8, srv) catch return nats.NATS_NO_MEMORY;
-                ptrs[i] = zstrs[i].ptr;
-                rtd.debugLog("config:   server[{d}] = {s}", .{ i, zstrs[i] });
-            }
-            s = nats.natsOptions_SetServers(opts, @ptrCast(ptrs.ptr), @intCast(servers.len));
-            if (s != nats.NATS_OK) {
-                rtd.debugLog("config: natsOptions_SetServers failed status={d}", .{s});
-                return s;
-            }
-        }
-    } else if (cfg.url) |url| {
-        s = setStrOpt(opts, url, &nats.natsOptions_SetURL, "setting URL");
-        if (s != nats.NATS_OK) return s;
-    } else {
-        rtd.debugLog("config: no URL configured, will use nats.c default", .{});
+        if (servers.len > 0) return allocator.dupe(u8, servers[0]);
     }
+    return allocator.dupe(u8, cfg.effectiveUrl());
+}
 
-    // Connection name
-    if (cfg.name) |name| {
-        s = setStrOpt(opts, name, &nats.natsOptions_SetName, "setting connection name");
-        if (s != nats.NATS_OK) return s;
+pub fn connectionOptions(cfg: *const Config) nats.Options {
+    var opts = nats.Options{
+        .name = cfg.name,
+        .user = cfg.user,
+        .pass = cfg.password,
+        .auth_token = cfg.token,
+        .creds_file = cfg.credentials_file,
+        .nkey_seed_file = cfg.nkey_seed_file,
+        .nkey_pubkey = cfg.nkey_public,
+        .tls_required = cfg.tls or isTlsUrl(cfg.url),
+        .tls_ca_file = cfg.tls_ca_cert,
+        .tls_cert_file = cfg.tls_cert,
+        .tls_key_file = cfg.tls_key,
+        .tls_insecure_skip_verify = cfg.tls_skip_verify,
+    };
+
+    if (cfg.servers) |servers| {
+        if (servers.len > 1) opts.servers = servers[1..];
     }
+    if (cfg.connect_timeout_ms) |ms| opts.connect_timeout_ns = @as(u64, @intCast(ms)) * std.time.ns_per_ms;
+    if (cfg.ping_interval_ms) |ms| opts.ping_interval_ms = @intCast(ms);
+    if (cfg.max_reconnect) |max| opts.max_reconnect_attempts = if (max < 0) 0 else @intCast(max);
+    if (cfg.reconnect_wait_ms) |ms| opts.reconnect_wait_ms = @intCast(ms);
 
-    // Auth: user/password
-    if (cfg.user) |user| {
-        rtd.debugLog("config: setting user/password auth (user='{s}')", .{user});
-        const uz = allocator.dupeZ(u8, user) catch return nats.NATS_NO_MEMORY;
-        defer allocator.free(uz);
-        const pz = if (cfg.password) |p|
-            allocator.dupeZ(u8, p) catch return nats.NATS_NO_MEMORY
-        else
-            null;
-        defer if (pz) |p| allocator.free(p);
-        s = nats.natsOptions_SetUserInfo(opts, uz.ptr, if (pz) |p| p.ptr else null);
-        if (s != nats.NATS_OK) {
-            rtd.debugLog("config: natsOptions_SetUserInfo failed status={d}", .{s});
-            return s;
-        }
-    }
-
-    // Auth: token
-    if (cfg.token) |token| {
-        s = setStrOpt(opts, token, &nats.natsOptions_SetToken, "setting token auth");
-        if (s != nats.NATS_OK) return s;
-    }
-
-    // Auth: credentials file
-    if (cfg.credentials_file) |creds| {
-        rtd.debugLog("config: setting credentials file '{s}'", .{creds});
-        const z = allocator.dupeZ(u8, creds) catch return nats.NATS_NO_MEMORY;
-        defer allocator.free(z);
-        s = nats.natsOptions_SetUserCredentialsFromFiles(opts, z.ptr, null);
-        if (s != nats.NATS_OK) {
-            rtd.debugLog("config: SetUserCredentialsFromFiles failed status={d}", .{s});
-            return s;
-        }
-    }
-
-    // Auth: NKey (public key + seed file)
-    if (cfg.nkey_seed_file) |seed| {
-        const pub_key = cfg.nkey_public orelse {
-            rtd.debugLog("config: nkey_seed_file set but nkey_public is missing", .{});
-            return nats.NATS_ERR;
-        };
-        rtd.debugLog("config: setting NKey auth (pubkey='{s}', seed='{s}')", .{ pub_key, seed });
-        const pz = allocator.dupeZ(u8, pub_key) catch return nats.NATS_NO_MEMORY;
-        defer allocator.free(pz);
-        const sz = allocator.dupeZ(u8, seed) catch return nats.NATS_NO_MEMORY;
-        defer allocator.free(sz);
-        s = nats.natsOptions_SetNKeyFromSeed(opts, pz.ptr, sz.ptr);
-        if (s != nats.NATS_OK) {
-            rtd.debugLog("config: natsOptions_SetNKeyFromSeed failed status={d}", .{s});
-            return s;
-        }
-    }
-
-    // Auto-detect TLS from URL scheme
-    const tls_enabled = cfg.tls or isTlsUrl(cfg.url);
-    if (tls_enabled) {
-        rtd.debugLog("config: enabling TLS", .{});
-        s = nats.natsOptions_SetSecure(opts, true);
-        if (s != nats.NATS_OK) {
-            rtd.debugLog("config: natsOptions_SetSecure failed status={d}", .{s});
-            return s;
-        }
-    }
-
-    if (cfg.tls_ca_cert) |ca| {
-        rtd.debugLog("config: loading CA cert from '{s}'", .{ca});
-        const z = allocator.dupeZ(u8, ca) catch return nats.NATS_NO_MEMORY;
-        defer allocator.free(z);
-        s = nats.natsOptions_LoadCATrustedCertificates(opts, z.ptr);
-        if (s != nats.NATS_OK) {
-            rtd.debugLog("config: LoadCATrustedCertificates failed status={d}", .{s});
-            return s;
-        }
-    }
-
-    if (cfg.tls_cert) |cert| {
-        const cz = allocator.dupeZ(u8, cert) catch return nats.NATS_NO_MEMORY;
-        defer allocator.free(cz);
-        const kz = if (cfg.tls_key) |k|
-            allocator.dupeZ(u8, k) catch return nats.NATS_NO_MEMORY
-        else
-            null;
-        defer if (kz) |k| allocator.free(k);
-        rtd.debugLog("config: loading client cert '{s}'{s}", .{
-            cert,
-            if (cfg.tls_key != null) @as([]const u8, " with key") else "",
-        });
-        s = nats.natsOptions_LoadCertificatesChain(opts, cz.ptr, if (kz) |k| k.ptr else null);
-        if (s != nats.NATS_OK) {
-            rtd.debugLog("config: LoadCertificatesChain failed status={d}", .{s});
-            return s;
-        }
-    }
-
-    if (cfg.tls_skip_verify) {
-        rtd.debugLog("config: WARNING skipping TLS server verification", .{});
-        s = nats.natsOptions_SkipServerVerification(opts, true);
-        if (s != nats.NATS_OK) {
-            rtd.debugLog("config: SkipServerVerification failed status={d}", .{s});
-            return s;
-        }
-    }
-
-    // If TLS is enabled but no explicit CA cert and not skipping verify,
-    // load root CAs from the Windows certificate store.
-    if (comptime build_options.tls) {
-        if (tls_enabled and cfg.tls_ca_cert == null and !cfg.tls_skip_verify) {
-            rtd.debugLog("config: loading system root CAs from Windows cert store", .{});
-            const pem = win_load_system_roots();
-            if (pem) |p| {
-                defer std.c.free(p);
-                s = nats.natsOptions_SetCATrustedCertificates(opts, p);
-                if (s != nats.NATS_OK) {
-                    rtd.debugLog("config: SetCATrustedCertificates failed status={d}", .{s});
-                    return s;
-                }
-                rtd.debugLog("config: system root CAs loaded", .{});
-            } else {
-                rtd.debugLog("config: WARNING could not load system root CAs", .{});
-            }
-        }
-    }
-
-    // Timeouts and reconnect
-    if (cfg.connect_timeout_ms) |t| {
-        s = setI64Opt(opts, t, &nats.natsOptions_SetTimeout, "setting connect timeout");
-        if (s != nats.NATS_OK) return s;
-    }
-
-    if (cfg.ping_interval_ms) |p| {
-        s = setI64Opt(opts, p, &nats.natsOptions_SetPingInterval, "setting ping interval");
-        if (s != nats.NATS_OK) return s;
-    }
-
-    if (cfg.max_reconnect) |m| {
-        rtd.debugLog("config: setting max reconnect to {d}", .{m});
-        s = nats.natsOptions_SetMaxReconnect(opts, m);
-        if (s != nats.NATS_OK) {
-            rtd.debugLog("config: SetMaxReconnect failed status={d}", .{s});
-            return s;
-        }
-    }
-
-    if (cfg.reconnect_wait_ms) |r| {
-        s = setI64Opt(opts, r, &nats.natsOptions_SetReconnectWait, "setting reconnect wait");
-        if (s != nats.NATS_OK) return s;
-    }
-
-    rtd.debugLog("config: all options applied successfully", .{});
-    return nats.NATS_OK;
+    rtd.debugLog("config: official nats.zig options prepared", .{});
+    return opts;
 }
 
 /// Try to load config from the search path. Returns default Config if no file found.

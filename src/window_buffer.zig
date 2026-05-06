@@ -62,7 +62,7 @@ pub const WindowBuffer = struct {
 
 // ---------------------------------------------------------------------------
 // Global registry: subject -> WindowBuffer
-// Protected by a mutex since onMsg fires from nats.c threads while
+// Protected by a mutex since NATS callbacks can fire while
 // NATS.SUBWIN_VALS runs on Excel's calc thread.
 // ---------------------------------------------------------------------------
 

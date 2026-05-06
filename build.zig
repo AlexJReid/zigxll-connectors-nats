@@ -10,19 +10,17 @@ pub fn build(b: *std.Build) void {
     });
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
-    const enable_tls = b.option(bool, "tls", "Enable TLS support (requires OpenSSL)") orelse true;
+    const nats_dep = b.dependency("nats", .{
+        .target = target,
+        .optimize = optimize,
+    });
 
-    // Pass build options to Zig code
-    const options = b.addOptions();
-    options.addOption(bool, "tls", enable_tls);
-
-    // Create a module for our user functions (don't add imports yet)
     const user_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "build_options", .module = options.createModule() },
+            .{ .name = "nats", .module = nats_dep.module("nats") },
         },
     });
 
@@ -35,96 +33,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // Vendor nats.c — compile as a static C library, no streaming. TLS optional.
-    const nats_src = b.path("vendor/nats.c/src");
-
-    const nats_core_sources: []const []const u8 = &.{
-        "asynccb.c",        "buf.c",         "comsock.c",          "conn.c",
-        "crypto.c",         "dispatch.c",    "hash.c",             "js.c",
-        "jsm.c",            "kv.c",          "micro.c",            "micro_client.c",
-        "micro_endpoint.c", "micro_error.c", "micro_monitoring.c", "micro_request.c",
-        "msg.c",            "nats.c",        "natstime.c",         "nkeys.c",
-        "nuid.c",           "object.c",      "opts.c",             "parser.c",
-        "pub.c",            "srvpool.c",     "stats.c",            "status.c",
-        "sub.c",            "timer.c",       "url.c",              "util.c",
-    };
-
-    const nats_glib_sources: []const []const u8 = &.{
-        "glib/glib.c",               "glib/glib_async_cb.c",
-        "glib/glib_dispatch_pool.c", "glib/glib_gc.c",
-        "glib/glib_last_error.c",    "glib/glib_ssl.c",
-        "glib/glib_timer.c",
-    };
-
-    const nats_win_sources: []const []const u8 = &.{
-        "win/cond.c", "win/mutex.c", "win/sock.c", "win/strings.c", "win/thread.c",
-    };
-
-    const nats_c_flags: []const []const u8 = if (enable_tls) &.{
-        "-D_REENTRANT",
-        "-DNATS_STATIC",
-        "-DNATS_HAS_TLS",
-    } else &.{
-        "-D_REENTRANT",
-        "-DNATS_STATIC",
-    };
-
-    xll.root_module.addCSourceFiles(.{
-        .root = nats_src,
-        .files = nats_core_sources,
-        .flags = nats_c_flags,
-    });
-    xll.root_module.addCSourceFiles(.{
-        .root = nats_src,
-        .files = nats_glib_sources,
-        .flags = nats_c_flags,
-    });
-    xll.root_module.addCSourceFiles(.{
-        .root = nats_src,
-        .files = nats_win_sources,
-        .flags = nats_c_flags,
-    });
-    // Include paths for nats.c internal headers
-    xll.root_module.addIncludePath(nats_src);
-    xll.root_module.addIncludePath(b.path("vendor/nats.c/src/include"));
-    xll.root_module.addIncludePath(b.path("vendor/nats.c/src/win"));
-    xll.root_module.addIncludePath(b.path("vendor/nats.c/src/glib"));
-
-    // Windows system libs needed by nats.c
-    user_module.linkSystemLibrary("ws2_32", .{});
-
-    // TLS: link OpenSSL and add its include/lib paths.
-    // Set OPENSSL_DIR to the install root (e.g. C:\Program Files\OpenSSL).
-    // Optionally set OPENSSL_LIB_DIR if libs aren't in OPENSSL_DIR\lib
-    // (e.g. C:\Program Files\OpenSSL\lib\VC\x64\MT).
-    if (enable_tls) {
-        const openssl_lib = b.path("vendor/openssl/lib");
-        const openssl_inc = b.path("vendor/openssl/include");
-
-        xll.root_module.addObjectFile(openssl_lib.path(b, "libssl.lib"));
-        xll.root_module.addObjectFile(openssl_lib.path(b, "libcrypto.lib"));
-        xll.root_module.addIncludePath(openssl_inc);
-        user_module.addIncludePath(openssl_inc);
-        user_module.linkSystemLibrary("crypt32", .{});
-
-        // Windows cert store helper — loads system root CAs for TLS verification
-        xll.root_module.addCSourceFiles(.{
-            .root = b.path("src"),
-            .files = &.{"win_certs.c"},
-            .flags = &.{},
-        });
-    }
-
-    // Also add include path to user module so Zig code can @cImport nats.h
-    user_module.addIncludePath(nats_src);
-    user_module.addIncludePath(b.path("vendor/nats.c/src/include"));
-    user_module.addIncludePath(b.path("vendor/nats.c/src/win"));
-
     // Install the XLL (rename .dll to .xll)
     const install_xll = b.addInstallFile(xll.getEmittedBin(), "lib/zigxll-connectors-nats.xll");
     b.getInstallStep().dependOn(&install_xll.step);
 
-    // Native tests — pure logic that doesn't depend on xll or nats.c
+    // Native tests — pure logic that doesn't depend on xll or NATS.
     const test_step = b.step("test", "Run native unit tests");
     const test_mod = b.createModule(.{
         .root_source_file = b.path("src/value_interp.zig"),
