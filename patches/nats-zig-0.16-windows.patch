@@ -1,0 +1,157 @@
+diff --git a/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/Client.zig b/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/Client.zig
+--- a/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/Client.zig
++++ b/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/Client.zig
+@@ -12,6 +12,7 @@
+ //! Connection-scoped: Allocator, Io, Reader, Writer stored for lifetime.
+ 
+ const std = @import("std");
++const builtin = @import("builtin");
+ const assert = std.debug.assert;
+ const Allocator = std.mem.Allocator;
+ 
+@@ -101,6 +102,9 @@
+ /// Used to guard shutdown/close calls that panic on
+ /// BADF in debug mode (Io.Threaded treats as bug).
+ fn isValidFd(fd: std.posix.fd_t) bool {
++    if (builtin.os.tag == .windows)
++        return @intFromPtr(fd) != std.math.maxInt(usize);
++
+     if (fd < 0) return false;
+     const F_GETFD = 1;
+     const rc = std.posix.system.fcntl(fd, F_GETFD, 0);
+@@ -944,18 +948,22 @@
+     // TCP_NODELAY
+     const enable: u32 = 1;
+     client.tcp_nodelay_set = true;
+-    std.posix.setsockopt(
+-        client.stream.socket.handle,
+-        std.posix.IPPROTO.TCP,
+-        std.posix.TCP.NODELAY,
+-        std.mem.asBytes(&enable),
+-    ) catch {
++    if (builtin.os.tag == .windows) {
+         client.tcp_nodelay_set = false;
+-    };
++    } else {
++        std.posix.setsockopt(
++            client.stream.socket.handle,
++            std.posix.IPPROTO.TCP,
++            std.posix.TCP.NODELAY,
++            std.mem.asBytes(&enable),
++        ) catch {
++            client.tcp_nodelay_set = false;
++        };
++    }
+ 
+     // Set TCP receive buffer size for better backpressure handling
+     client.tcp_rcvbuf_set = opts.tcp_rcvbuf > 0;
+-    if (opts.tcp_rcvbuf > 0) {
++    if (opts.tcp_rcvbuf > 0 and builtin.os.tag != .windows) {
+         std.posix.setsockopt(
+             client.stream.socket.handle,
+             std.posix.SOL.SOCKET,
+@@ -3977,11 +3985,7 @@
+     // 1000 iterations = ~10ms budget, well above the
+     // io_task's ~1ms drain cycle.
+     for (0..1000) |_| {
+-        var ts: std.posix.timespec = .{
+-            .sec = 0,
+-            .nsec = 10_000,
+-        };
+-        _ = std.posix.system.nanosleep(&ts, &ts);
++        self.io.sleep(.fromMicroseconds(10), .awake) catch {};
+         if (self.publish_ring.reserve(max_size)) |e|
+             return e;
+     }
+@@ -4082,12 +4086,14 @@
+ 
+     // Set TCP_NODELAY
+     const enable: u32 = 1;
+-    std.posix.setsockopt(
+-        self.stream.socket.handle,
+-        std.posix.IPPROTO.TCP,
+-        std.posix.TCP.NODELAY,
+-        std.mem.asBytes(&enable),
+-    ) catch {};
++    if (builtin.os.tag != .windows) {
++        std.posix.setsockopt(
++            self.stream.socket.handle,
++            std.posix.IPPROTO.TCP,
++            std.posix.TCP.NODELAY,
++            std.mem.asBytes(&enable),
++        ) catch {};
++    }
+ 
+     // Reinitialize reader/writer with existing buffers
+     self.reader = self.stream.reader(self.io, self.read_buffer);
+diff --git a/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/connection/io_task.zig b/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/connection/io_task.zig
+--- a/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/connection/io_task.zig
++++ b/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/connection/io_task.zig
+@@ -286,23 +286,38 @@
+     no_data,
+     disconnected,
+ };
++
++const PollFd = if (native_os == .windows) extern struct {
++    fd: posix.socket_t,
++    events: i16,
++    revents: i16,
++} else posix.pollfd;
++
++const poll_in: i16 = if (native_os == .windows) 0x0300 else posix.POLL.IN;
++const poll_err: i16 = if (native_os == .windows) 0x0001 else posix.POLL.ERR;
++const poll_hup: i16 = if (native_os == .windows) 0x0002 else posix.POLL.HUP;
+ 
++extern "ws2_32" fn WSAPoll(
++    fdArray: [*]PollFd,
++    fds: c_ulong,
++    timeout: c_int,
++) callconv(.winapi) c_int;
++
+ /// Cross-platform socket poll.
+ /// std.posix.poll has a Windows codepath that calls
+ /// windows.poll which does not exist in this Zig version.
+ /// Use WSAPoll directly on Windows.
+ fn pollSockets(
+-    fds: []posix.pollfd,
++    fds: []PollFd,
+     timeout: i32,
+-) posix.PollError!usize {
++) !usize {
+     if (native_os == .windows) {
+-        const ws2 = std.os.windows.ws2_32;
+-        const rc = ws2.WSAPoll(
++        const rc = WSAPoll(
+             fds.ptr,
+             @intCast(fds.len),
+             timeout,
+         );
+-        if (rc == ws2.SOCKET_ERROR)
++        if (rc == -1)
+             return error.NetworkDown;
+         return @intCast(rc);
+     }
+@@ -318,9 +333,9 @@
+     fd: posix.socket_t,
+     timeout_ms: i32,
+ ) PollResult {
+-    var fds = [_]posix.pollfd{.{
++    var fds = [_]PollFd{.{
+         .fd = fd,
+-        .events = posix.POLL.IN,
++        .events = poll_in,
+         .revents = 0,
+     }};
+     const ready = pollSockets(&fds, timeout_ms) catch return .no_data;
+@@ -331,10 +346,10 @@
+     // REVIEWED(2025-03): POLLHUP prioritized over POLLIN intentionally.
+     // Dead connection detection is more important than draining
+     // partial data; reconnect recovers cleanly.
+-    if ((revents & (posix.POLL.HUP | posix.POLL.ERR)) != 0)
++    if ((revents & (poll_hup | poll_err)) != 0)
+         return .disconnected;
+ 
+-    if ((revents & posix.POLL.IN) != 0) return .has_data;
++    if ((revents & poll_in) != 0) return .has_data;
+     return .no_data;
+ }

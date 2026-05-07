@@ -10,10 +10,60 @@ const std = @import("std");
 const nats = @import("nats");
 const xll = @import("xll");
 const rtd = xll.rtd;
-const win = @cImport({
-    @cDefine("WIN32_LEAN_AND_MEAN", "1");
-    @cInclude("windows.h");
-});
+const win = struct {
+    const windows = std.os.windows;
+
+    pub const DWORD = windows.DWORD;
+    pub const HANDLE = windows.HANDLE;
+    pub const HMODULE = ?windows.HMODULE;
+    pub const INVALID_HANDLE_VALUE = windows.INVALID_HANDLE_VALUE;
+    pub const INVALID_FILE_SIZE = std.math.maxInt(DWORD);
+    pub const MAX_PATH = windows.MAX_PATH;
+
+    pub const GENERIC_READ: DWORD = 0x80000000;
+    pub const FILE_SHARE_READ: DWORD = 0x00000001;
+    pub const OPEN_EXISTING: DWORD = 3;
+    pub const FILE_ATTRIBUTE_NORMAL: DWORD = 0x00000080;
+
+    pub extern "kernel32" fn CreateFileA(
+        lpFileName: [*:0]const u8,
+        dwDesiredAccess: DWORD,
+        dwShareMode: DWORD,
+        lpSecurityAttributes: ?*anyopaque,
+        dwCreationDisposition: DWORD,
+        dwFlagsAndAttributes: DWORD,
+        hTemplateFile: ?HANDLE,
+    ) callconv(.winapi) HANDLE;
+
+    pub extern "kernel32" fn CloseHandle(hObject: HANDLE) callconv(.winapi) c_int;
+    pub extern "kernel32" fn GetFileSize(hFile: HANDLE, lpFileSizeHigh: ?*DWORD) callconv(.winapi) DWORD;
+
+    pub extern "kernel32" fn ReadFile(
+        hFile: HANDLE,
+        lpBuffer: [*]u8,
+        nNumberOfBytesToRead: DWORD,
+        lpNumberOfBytesRead: *DWORD,
+        lpOverlapped: ?*anyopaque,
+    ) callconv(.winapi) c_int;
+
+    pub extern "kernel32" fn GetModuleHandleExA(
+        dwFlags: DWORD,
+        lpModuleName: ?*const anyopaque,
+        phModule: *HMODULE,
+    ) callconv(.winapi) c_int;
+
+    pub extern "kernel32" fn GetModuleFileNameA(
+        hModule: HMODULE,
+        lpFilename: [*]u8,
+        nSize: DWORD,
+    ) callconv(.winapi) DWORD;
+
+    pub extern "kernel32" fn GetEnvironmentVariableA(
+        lpName: [*:0]const u8,
+        lpBuffer: [*]u8,
+        nSize: DWORD,
+    ) callconv(.winapi) DWORD;
+};
 
 const allocator = std.heap.c_allocator;
 

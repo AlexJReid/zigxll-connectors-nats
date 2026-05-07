@@ -112,10 +112,17 @@ This also applies to any self-hosted NATS deployment using operator/account JWTs
 Build on Windows with MSVC available. The default target is `x86_64-windows-msvc`.
 
 ```bash
-zig build --fetch
+zig build --fetch=all
+git apply patches/nats-zig-0.16-windows.patch
+zig build --release=safe
 ```
 
 The XLL will be output to `zig-out/lib/zigxll-connectors-nats.xll`.
+
+Note: [`patches/nats-zig-0.16-windows.patch`](patches/nats-zig-0.16-windows.patch)
+patches the pinned `nats.zig` package for Zig 0.16 Windows builds. The pinned
+client still uses a few POSIX socket/sleep paths that no longer compile for
+`x86_64-windows-msvc` under Zig 0.16.
 
 macOS/Linux cross-compilation is not the supported path for this connector while it uses the official `nats.zig` package.
 

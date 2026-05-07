@@ -40,8 +40,14 @@ jobs:
       with:
         version: 0.16.0
 
+    - name: Fetch dependencies
+      run: zig build --fetch=all
+
+    - name: Patch nats.zig for Zig 0.16 Windows
+      run: git apply patches/nats-zig-0.16-windows.patch
+
     - name: Build XLL
-      run: zig build --release=small --summary all
+      run: zig build --release=safe --summary all
 
     - name: Verify XLL artifact
       shell: pwsh

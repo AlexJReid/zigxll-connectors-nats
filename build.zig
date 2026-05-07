@@ -8,7 +8,7 @@ pub fn build(b: *std.Build) void {
             .abi = .msvc,
         },
     });
-    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
+    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSafe });
 
     const nats_dep = b.dependency("nats", .{
         .target = target,
