@@ -114,21 +114,19 @@ This also applies to any self-hosted NATS deployment using operator/account JWTs
 The default target is `x86_64-windows-msvc`, producing a Windows XLL.
 
 ```bash
-zig build --fetch=all
-git apply --ignore-space-change --ignore-whitespace patches/nats-zig-0.16-windows.patch
 zig build --release=safe
 ```
 
 The XLL will be output to `zig-out/lib/zigxll-connectors-nats.xll`.
 
-Note: [`patches/nats-zig-0.16-windows.patch`](patches/nats-zig-0.16-windows.patch)
-patches the pinned `nats.zig` package for Zig 0.16 Windows builds. The pinned
-client still uses a few POSIX socket/sleep paths that no longer compile for
-`x86_64-windows-msvc` under Zig 0.16.
-
-The same sequence is used for native Windows builds and cross-compilation. If
-the pinned `nats.zig` dependency is updated to include these Zig 0.16 Windows
-fixes upstream, the patch step can be removed.
+`nats.zig` is vendored under [`vendor/nats.zig/`](vendor/nats.zig/) with local
+edits for Zig 0.16 Windows support: a few POSIX socket/sleep paths that don't
+compile for `x86_64-windows-msvc` are gated to non-Windows targets, and the
+io_task's read loop skips `WSAPoll` on Windows because `std.Io.Threaded` opens
+sockets as AFD handles (NT file handles), not Winsock `SOCKET`s — `WSAPoll`
+returns `WSAENOTSOCK` for them, so we let `reader.fillMore()` block instead.
+When upstream `nats.zig` adds proper Zig 0.16 Windows support we can drop the
+vendor dir and switch back to a fetched dependency.
 
 ## RTD Servers
 

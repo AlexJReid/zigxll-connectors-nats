@@ -27,8 +27,8 @@ The default target is `x86_64-windows-msvc`, producing a Windows XLL. Native Win
 
 ## Dependencies
 
-- **ZigXLL framework:** Referenced from `build.zig.zon`.
-- **nats.zig:** Official Zig NATS client, referenced from `build.zig.zon`.
+- **ZigXLL framework:** Fetched via `build.zig.zon`.
+- **nats.zig:** Vendored under `vendor/nats.zig/`. Wired up in `build.zig.zon` as a `path` dependency. Carries local edits for Zig 0.16 Windows: a few POSIX socket/sleep calls are gated to non-Windows, and `connection/io_task.zig`'s read loop skips `WSAPoll` on Windows. The latter is load-bearing — `std.Io.Threaded` opens sockets via `NtCreateFile` against `\Device\Afd\Endpoint`, so the handle is an NT file handle, not a Winsock `SOCKET`. `WSAPoll` rejects it with `WSAENOTSOCK` (10038), the io_task spins forever, and no inbound bytes are ever delivered to the callback drain. Skipping the poll lets `reader.fillMore()` block on the AFD handle directly (which is what `std.Io` is designed to do); cancellation still works because `client.deinit()` closes the handle.
 
 ## Architecture
 

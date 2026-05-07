@@ -215,13 +215,8 @@ const NatsHandler = struct {
         if (self.window_topics.contains(topic_id)) {
             const trimmed = std.mem.trim(u8, copy, &[_]u8{ ' ', '\t', '\n', '\r' });
             if (std.fmt.parseFloat(f64, trimmed)) |value| {
-                // Push outside our lock — window_buffer has its own mutex
-                // But we're already holding self.mu here, and pushValue takes wb.mu.
-                // This is fine: lock order is always self.mu -> wb.mu.
                 _ = wb.pushValue(subject, value);
-            } else |_| {
-                // Non-numeric message in window mode — skip
-            }
+            } else |_| {}
             allocator.free(copy);
         } else {
             // Normal mode: store latest payload
