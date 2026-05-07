@@ -21,7 +21,7 @@ zig fmt src/          # format in-place
 zig fmt --check src/  # check only (CI-friendly, exits non-zero if unformatted)
 ```
 
-The default target is `x86_64-windows-msvc`, producing a Windows XLL. The supported build path is native Windows with MSVC available; macOS/Linux cross-compilation may fail if upstream dependencies do not support that path.
+The default target is `x86_64-windows-msvc`, producing a Windows XLL. Native Windows builds and macOS/Linux cross-compilation use the same fetch, patch, and build sequence documented in the README.
 
 **Zig version:** 0.16.0
 

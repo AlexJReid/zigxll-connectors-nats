@@ -44,7 +44,7 @@ jobs:
       run: zig build --fetch=all
 
     - name: Patch nats.zig for Zig 0.16 Windows
-      run: git apply patches/nats-zig-0.16-windows.patch
+      run: git apply --ignore-space-change --ignore-whitespace patches/nats-zig-0.16-windows.patch
 
     - name: Build XLL
       run: zig build --release=safe --summary all
