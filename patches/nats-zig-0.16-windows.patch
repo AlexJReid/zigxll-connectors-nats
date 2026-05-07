@@ -87,7 +87,7 @@ diff --git a/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src
 diff --git a/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/connection/io_task.zig b/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/connection/io_task.zig
 --- a/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/connection/io_task.zig
 +++ b/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src/connection/io_task.zig
-@@ -286,23 +286,38 @@
+@@ -286,25 +286,40 @@
      no_data,
      disconnected,
  };
@@ -131,6 +131,8 @@ diff --git a/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src
              return error.NetworkDown;
          return @intCast(rc);
      }
+     return posix.poll(fds, timeout);
+ }
 @@ -318,9 +333,9 @@
      fd: posix.socket_t,
      timeout_ms: i32,
@@ -143,7 +145,7 @@ diff --git a/zig-pkg/nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa/src
          .revents = 0,
      }};
      const ready = pollSockets(&fds, timeout_ms) catch return .no_data;
-@@ -331,10 +346,10 @@
+@@ -331,9 +346,9 @@
      // REVIEWED(2025-03): POLLHUP prioritized over POLLIN intentionally.
      // Dead connection detection is more important than draining
      // partial data; reconnect recovers cleanly.
