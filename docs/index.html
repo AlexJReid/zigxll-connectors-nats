@@ -123,8 +123,7 @@
   <h1>zigxll-connectors-nats</h1>
   <p>Stream live NATS messages into Excel cells. Subscribe, publish, and build real-time dashboards with a single XLL add-in.</p>
   <div class="hero-buttons">
-    <a href="https://github.com/AlexJReid/zigxll-connectors-nats/releases/latest/download/zigxll-connectors-nats-notls.xll" class="btn-primary">Download (standard)</a>
-    <a href="https://github.com/AlexJReid/zigxll-connectors-nats/releases/latest/download/zigxll-connectors-nats.xll" class="btn-primary">Download (with TLS)</a>
+    <a href="https://github.com/AlexJReid/zigxll-connectors-nats/releases/latest/download/zigxll-connectors-nats.xll" class="btn-primary">Download</a>
     <a href="https://github.com/AlexJReid/zigxll-connectors-nats" class="btn-secondary">View on GitHub</a>
   </div>
 </header>
@@ -154,8 +153,8 @@
         <p>Around 480 KB <code>.xll</code> file. Just open it in Excel, or install. No .NET framework, no COM setup, no admin rights.</p>
       </div>
       <div class="feature">
-        <h4>Built on nats.c</h4>
-        <p>The official, battle-tested NATS C client. Supports TLS, NKey, token, and credentials file authentication out of the box.</p>
+        <h4>Built on nats.zig</h4>
+        <p>The official Zig NATS client. Supports TLS, NKey, token, and credentials file authentication with no OpenSSL dependency.</p>
       </div>
       <div class="feature">
         <h4>Subscribe and publish</h4>
@@ -175,7 +174,7 @@
       </div>
       <div class="feature">
         <h4>Designed for throughput</h4>
-        <p>Arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free handoff from the nats.c thread pool.</p>
+        <p>Arena-allocated refresh cycles, zero per-message allocations on the render path.</p>
       </div>
       <div class="feature">
         <h4>File-based configuration</h4>
@@ -188,16 +187,13 @@
   <section id="getting-started">
     <h2>Getting started</h2>
     <ol>
-      <li>Download one of the XLL files above (standard or TLS variant).</li>
+      <li>Download the XLL above.</li>
       <li>You may need to unblock it: <a href="https://support.microsoft.com/en-gb/topic/excel-is-blocking-untrusted-xll-add-ins-by-default-1e3752e2-1177-4444-a807-7b700266a6fb">Excel is blocking untrusted XLL add-ins</a>.</li>
       <li>Double-click the <code>.xll</code> file to load it into Excel.</li>
       <li>Ensure a NATS server is running. By default the add-in connects to <code>127.0.0.1:4222</code>.</li>
     </ol>
 
     <div class="note">
-      The TLS variant requires <a href="https://slproweb.com/products/Win32OpenSSL.html">Win64 OpenSSL v3</a> (64-bit) to be installed. This is a fairly common requirement, so you may already have it.
-    </div>
-
     <h3>Basic usage</h3>
     <pre><code>=NATS.SUB("my.subject")</code></pre>
     <p>Or the raw RTD call:</p>
@@ -283,7 +279,7 @@ C3: =STDEV(NATS.SUBWIN.VALS(A1))</code></pre>
 }</code></pre>
 
     <h3>NGS / Synadia Cloud</h3>
-    <p>To connect to <a href="https://synadia.com/ngs">NGS</a> or any Synadia Cloud deployment, use the TLS variant of the XLL and a <code>.creds</code> file exported from your account:</p>
+    <p>To connect to <a href="https://synadia.com/ngs">NGS</a> or any Synadia Cloud deployment, use a <code>tls://</code> URL and a <code>.creds</code> file exported from your account:</p>
     <pre><code>{
   "url": "tls://connect.ngs.global",
   "name": "zigxll-nats",
@@ -299,7 +295,7 @@ C3: =STDEV(NATS.SUBWIN.VALS(A1))</code></pre>
       <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
       <tbody>
         <tr><td><code>url</code></td><td>string</td><td>Server URL. Default <code>nats://127.0.0.1:4222</code></td></tr>
-        <tr><td><code>servers</code></td><td>string[]</td><td>Multiple server URLs for cluster failover (overrides <code>url</code>)</td></tr>
+        <tr><td><code>servers</code></td><td>string[]</td><td>Additional server URLs for cluster failover. The first entry is used for the initial connection</td></tr>
         <tr><td><code>name</code></td><td>string</td><td>Connection name (visible in NATS monitoring)</td></tr>
         <tr><td><code>user</code></td><td>string</td><td>Username for user/password auth</td></tr>
         <tr><td><code>password</code></td><td>string</td><td>Password for user/password auth</td></tr>
@@ -307,7 +303,7 @@ C3: =STDEV(NATS.SUBWIN.VALS(A1))</code></pre>
         <tr><td><code>credentials_file</code></td><td>string</td><td>Path to <code>.creds</code> file (JWT + NKey, for NATS NGS / operator mode)</td></tr>
         <tr><td><code>nkey_public</code></td><td>string</td><td>NKey public key (the <code>N...</code> string)</td></tr>
         <tr><td><code>nkey_seed_file</code></td><td>string</td><td>Path to NKey seed file (requires <code>nkey_public</code>)</td></tr>
-        <tr><td><code>tls</code></td><td>bool</td><td>Enable TLS (requires <a href="https://slproweb.com/products/Win32OpenSSL.html">OpenSSL for Windows</a>). Default <code>false</code></td></tr>
+        <tr><td><code>tls</code></td><td>bool</td><td>Require TLS. Also enabled automatically for <code>tls://</code> URLs. Default <code>false</code></td></tr>
         <tr><td><code>tls_ca_cert</code></td><td>string</td><td>Path to CA certificate file</td></tr>
         <tr><td><code>tls_cert</code></td><td>string</td><td>Path to client certificate file</td></tr>
         <tr><td><code>tls_key</code></td><td>string</td><td>Path to client private key file</td></tr>
@@ -323,35 +319,22 @@ C3: =STDEV(NATS.SUBWIN.VALS(A1))</code></pre>
   <!-- Architecture -->
   <section id="architecture">
     <h2>Architecture</h2>
-    <p>The XLL embeds a vendored copy of <a href="https://github.com/nats-io/nats.c">nats.c</a>, compiled as a static library alongside the Zig source. Messages arrive on the nats.c internal thread pool via a subscription callback, which stores the latest value per topic and notifies Excel to refresh.</p>
+    <p>The XLL uses the official <a href="https://github.com/nats-io/nats.zig">nats.zig</a> client. A shared NATS client is created lazily and reused by RTD subscriptions and <code>NATS.PUB</code>. Subscription callbacks store the latest value per topic and notify Excel to refresh.</p>
     <h3>Key implementation details</h3>
     <ul>
-      <li><strong>Arena allocator</strong> for UTF-16 string conversions during Excel refresh cycles, reset once per <code>RefreshData</code> batch. Zero malloc/free churn on the hot path.</li>
-      <li><strong>Null-terminated subject copies</strong> when passing Zig slices to the nats.c C API.</li>
-      <li><strong>CRT compatibility patches</strong> for the Zig XLL build environment. <code>InitOnceExecuteOnce</code> and <code>atexit()</code> are bypassed as they can deadlock in DLLs built with Zig's CRT stubs.</li>
+      <li><strong>Arena allocator</strong> for UTF-16 string conversions during Excel refresh cycles, reset once per <code>RefreshData</code> batch. Zero malloc/free churn on the hot path.</li>      <li><strong>CRT compatibility patches</strong> for the Zig XLL build environment. <code>InitOnceExecuteOnce</code> and <code>atexit()</code> are bypassed as they can deadlock in DLLs built with Zig's CRT stubs.</li>
     </ul>
-    <p>Built with <a href="https://ziglang.org/">Zig</a> 0.15.1 using the <a href="https://github.com/AlexJReid/zigxll">ZigXLL</a> framework. The target is <code>x86_64-windows-msvc</code>, and the project cross-compiles from macOS or Linux with the help of <a href="https://jake-shadle.github.io/xwin/">xwin</a>.</p>
+    <p>Built with <a href="https://ziglang.org/">Zig</a> 0.16.0 using the <a href="https://github.com/AlexJReid/zigxll">ZigXLL</a> framework. The target is <code>x86_64-windows-msvc</code>, and the supported build path is native Windows with MSVC available.</p>
   </section>
 
   <!-- Building -->
   <section id="building">
     <h2>Building from source</h2>
-    <p>Requires <a href="https://ziglang.org/">Zig</a> 0.15.1 and a checkout of <a href="https://github.com/AlexJReid/zigxll">ZigXLL</a> as a sibling directory.</p>
-    <pre><code>zig build</code></pre>
+    <p>Requires <a href="https://ziglang.org/">Zig</a> 0.16.0 on Windows with MSVC available. Dependencies are resolved from <code>build.zig.zon</code>.</p>
+    <pre><code>zig build --fetch</code></pre>
     <p>Output: <code>zig-out/lib/zigxll-connectors-nats.xll</code></p>
 
-    <h3>Cross-compilation (macOS/Linux)</h3>
-    <p>Install <a href="https://jake-shadle.github.io/xwin/">xwin</a> to provide the Windows SDK headers and libraries:</p>
-    <pre><code># macOS
-brew install xwin
-xwin --accept-license splat --output ~/.xwin
-
-# Linux
-cargo install xwin
-xwin --accept-license splat --output ~/.xwin</code></pre>
-    <div class="note">
-      Cross-compilation does not yet support TLS (<code>-Dtls=true</code>), as it requires OpenSSL <code>.lib</code> files for the target platform to be available locally. CI builds natively on Windows with TLS enabled.
-    </div>
+    <p>macOS/Linux cross-compilation is not the supported path for this connector while it uses the official <code>nats.zig</code> package.</p>
   </section>
 
   <!-- Roadmap -->
@@ -369,7 +352,7 @@ xwin --accept-license splat --output ~/.xwin</code></pre>
   <section id="licence">
     <h2>Licence</h2>
     <p>MIT. See <a href="https://github.com/AlexJReid/zigxll-connectors-nats/blob/main/LICENSE">LICENCE</a> for details.</p>
-    <p>This project uses <a href="https://github.com/nats-io/nats.c">nats.c</a> (Apache 2.0) and <a href="https://github.com/AlexJReid/zigxll">ZigXLL</a> (MIT). See <a href="https://github.com/AlexJReid/zigxll-connectors-nats/blob/main/NOTICE">NOTICE</a> for attribution.</p>
+    <p>This project uses <a href="https://github.com/nats-io/nats.zig">nats.zig</a> (Apache 2.0) and <a href="https://github.com/AlexJReid/zigxll">ZigXLL</a> (MIT). See <a href="https://github.com/AlexJReid/zigxll-connectors-nats/blob/main/NOTICE">NOTICE</a> for attribution.</p>
   </section>
 
 </main>

@@ -18,15 +18,15 @@ Subscribes to NATS subjects with `=NATS.SUB("subject")` to stream published mess
 
 ## Features
 
-- **Single small binary** (~480KB `.xll` file). Just open it in Excel, or install. (If you need tls:// connections, Win64 OpenSSL v3 is required. [Download .msi](https://slproweb.com/download/Win64OpenSSL-3_6_1.msi). This is a fairly common requirement so you may have it already.)
-- **Built on [nats.c](https://github.com/nats-io/nats.c)**, the official, battle-tested NATS C client. Supports TLS, NKey, token, and credentials file authentication out of the box.
+- **Single small binary** `.xll` file. Just open it in Excel, or install.
+- **Built on official [nats.zig](https://github.com/nats-io/nats.zig)**. No vendored C client and no OpenSSL install required.
 - **Supports PUB snd SUB**, with more on the way.
 - **No .NET framework dependencies, no COM setup, just run it** The RTD server registers itself to `HKCU` on load, no admin rights needed.
 - **Custom Excel RTD wrapper functions** like `=NATS.SUB("prices.gbp")` so users never need to think about raw `=RTD(...)` syntax. You can create your own wrapper functions to your subjects, i.e. building a subject string based on multiple, documented parameters.
 - **File-based configuration**, with `config.json` - details below.
 - **Windowed subscriptions.** `=NATS.SUBWIN("subject", 100)` accumulates the last N numeric values in a ring buffer, spilling them as a dynamic array for rolling aggregates, charts, and sparklines.
 - **Type hints and JSON extraction.** `=NATS.SUB("ticker.AAPL", "$.price")` parses JSON payloads and returns native Excel types - numbers, bools, strings - ready for formulas and charts.
-- **Designed for high throughput.** Arena-allocated refresh cycles, zero per-message allocations on the render path, and lock-free handoff from the nats.c thread pool to Excel's RTD polling.
+- **Designed for high throughput.** Arena-allocated refresh cycles and zero per-message allocations on the render path.
 
 ## Usage in Excel
 
@@ -70,7 +70,7 @@ If no file is found, defaults are used (`nats://127.0.0.1:4222`, no auth, no TLS
 
 ### NGS / Synadia Cloud
 
-To connect to [NGS](https://synadia.com/ngs) or any Synadia Cloud deployment, use the TLS variant of the XLL and a `.creds` file exported from your account:
+To connect to [NGS](https://synadia.com/ngs) or any Synadia Cloud deployment, use a `tls://` URL and a `.creds` file exported from your account:
 
 ```json
 {
@@ -89,7 +89,7 @@ This also applies to any self-hosted NATS deployment using operator/account JWTs
 | Field | Type | Description |
 |-------|------|-------------|
 | `url` | string | Server URL. Default `nats://127.0.0.1:4222` |
-| `servers` | string[] | Multiple server URLs for cluster failover (overrides `url`) |
+| `servers` | string[] | Additional server URLs for cluster failover. The first entry is used for the initial connection |
 | `name` | string | Connection name (visible in NATS monitoring) |
 | `user` | string | Username for user/password auth |
 | `password` | string | Password for user/password auth |
@@ -97,7 +97,7 @@ This also applies to any self-hosted NATS deployment using operator/account JWTs
 | `credentials_file` | string | Path to `.creds` file (JWT + NKey, for NATS NGS / operator mode) |
 | `nkey_public` | string | NKey public key (the `N...` string) |
 | `nkey_seed_file` | string | Path to NKey seed file (requires `nkey_public`) |
-| `tls` | bool | Enable TLS (requires [OpenSSL for Windows](https://slproweb.com/products/Win32OpenSSL.html)). Default `false` |
+| `tls` | bool | Require TLS. Also enabled automatically for `tls://` URLs. Default `false` |
 | `tls_ca_cert` | string | Path to CA certificate file |
 | `tls_cert` | string | Path to client certificate file |
 | `tls_key` | string | Path to client private key file |
@@ -109,37 +109,26 @@ This also applies to any self-hosted NATS deployment using operator/account JWTs
 
 ## Building
 
-### Cross-compilation setup
-
-Although Excel XLL assemblies only run on Windows, ZigXLL cross-compiles Windows XLL add-ins from macOS or Linux with the help of [xwin](https://jake-shadle.github.io/xwin/).
-
-**Windows:** Skip this section.
-
-**macOS:**
-```bash
-brew install xwin
-xwin --accept-license splat --output ~/.xwin
-```
-
-**Linux:**
-```bash
-cargo install xwin
-xwin --accept-license splat --output ~/.xwin
-```
-
-If Cargo isn't available, install Rust via [rustup.rs](https://rustup.rs/) or download a prebuilt binary from the [xwin releases page](https://github.com/Jake-Shadle/xwin/releases).
-
-See the [ZigXLL README](https://github.com/AlexJReid/zigxll) for more details.
-
-**Note:** Cross-compilation does not yet support TLS (`-Dtls=true`), as it requires OpenSSL `.lib` files for the target platform to be available locally. CI builds natively on Windows with TLS enabled.
-
 ### Build the XLL
 
+The default target is `x86_64-windows-msvc`, producing a Windows XLL.
+
 ```bash
-zig build
+zig build --fetch=all
+git apply --ignore-space-change --ignore-whitespace patches/nats-zig-0.16-windows.patch
+zig build --release=safe
 ```
 
 The XLL will be output to `zig-out/lib/zigxll-connectors-nats.xll`.
+
+Note: [`patches/nats-zig-0.16-windows.patch`](patches/nats-zig-0.16-windows.patch)
+patches the pinned `nats.zig` package for Zig 0.16 Windows builds. The pinned
+client still uses a few POSIX socket/sleep paths that no longer compile for
+`x86_64-windows-msvc` under Zig 0.16.
+
+The same sequence is used for native Windows builds and cross-compilation. If
+the pinned `nats.zig` dependency is updated to include these Zig 0.16 Windows
+fixes upstream, the patch step can be removed.
 
 ## RTD Servers
 
@@ -216,30 +205,28 @@ Returns `#VALUE!` if not connected or publish fails.
 
 ### NATS.INFO - connection info and statistics
 
-`NATS.INFO` returns a spilling 2-column matrix with connection metadata and message statistics from nats.c. Useful for debugging.
+`NATS.INFO` returns a spilling 2-column matrix with connection metadata and message statistics from nats.zig. Useful for debugging.
 
 <img src="docs/images/info.png" alt="NATS.INFO output in Excel" width="280">
 
 ## Architecture
 
-The XLL embeds a vendored copy of [nats.c](https://github.com/nats-io/nats.c), compiled as a static library. This required some patches to work in the Zig XLL build environment (bypassing `InitOnceExecuteOnce` and `atexit` which deadlock without a full MSVC CRT). It may be possible to use nats.c as a Zig build system dependency instead of vendoring, but this hasn't been explored yet. Messages arrive on nats.c's internal thread pool via a subscription callback, which stores the latest value per topic and notifies Excel to refresh.
+The XLL uses the official [nats.zig](https://github.com/nats-io/nats.zig) client. A shared NATS client is created lazily and reused by RTD subscriptions and `NATS.PUB`. Subscription callbacks store the latest value per topic and notify Excel to refresh.
 
 Key implementation details:
 
 - **Arena allocator** for UTF-16 string conversions during Excel refresh cycles -reset once per `RefreshData` batch, zero malloc/free churn on the hot path
-- **Null-terminated subject copies** when passing Zig slices to the nats.c C API
-- **CRT compatibility patches** for the Zig XLL build environment -`InitOnceExecuteOnce` and `atexit()` are bypassed as they can deadlock in DLLs built with Zig's CRT stubs
+- **Official Zig NATS client** with native TLS via Zig/std, credentials-file auth, token auth, username/password auth, and NKey seed-file auth
 
 ## Download
 
 Pre-built, signed XLLs for 64-bit Excel on Windows:
 
-| Variant | Download | Notes |
-|---------|----------|-------|
-| **Standard** | [zigxll-connectors-nats-notls.xll](https://github.com/AlexJReid/zigxll-connectors-nats/releases/latest/download/zigxll-connectors-nats-notls.xll) | No external dependencies |
-| **With TLS** | [zigxll-connectors-nats.xll](https://github.com/AlexJReid/zigxll-connectors-nats/releases/latest/download/zigxll-connectors-nats.xll) | Requires [Win64 OpenSSL v3](https://slproweb.com/products/Win32OpenSSL.html) (64-bit) |
+| Download | Notes |
+|----------|-------|
+| [zigxll-connectors-nats.xll](https://github.com/AlexJReid/zigxll-connectors-nats/releases/latest/download/zigxll-connectors-nats.xll) | No external dependencies |
 
-1. Download one of the XLLs above
+1. Download the XLL above
 2. You may need to unblock it: [Excel is blocking untrusted XLL add-ins](https://support.microsoft.com/en-gb/topic/excel-is-blocking-untrusted-xll-add-ins-by-default-1e3752e2-1177-4444-a807-7b700266a6fb)
 3. Double-click the `.xll` file to load it into Excel
 
@@ -254,7 +241,7 @@ Pre-built, signed XLLs for 64-bit Excel on Windows:
 
 MIT. See [LICENSE](LICENSE) for details.
 
-This project uses [nats.c](https://github.com/nats-io/nats.c) (Apache 2.0) and [ZigXLL](https://github.com/AlexJReid/zigxll) (MIT). See [NOTICE](NOTICE) for attribution.
+This project uses [nats.zig](https://github.com/nats-io/nats.zig) (Apache 2.0) and [ZigXLL](https://github.com/AlexJReid/zigxll) (MIT). See [NOTICE](NOTICE) for attribution.
 
 
 

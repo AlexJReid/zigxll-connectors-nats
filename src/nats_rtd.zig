@@ -10,21 +10,22 @@
 const std = @import("std");
 const xll = @import("xll");
 const rtd = xll.rtd;
-const nats = @cImport(@cInclude("nats.h"));
+const nats = @import("nats");
 const vi = @import("value_interp.zig");
 const nats_conn = @import("nats_conn.zig");
 const wb = @import("window_buffer.zig");
 
 const allocator = std.heap.c_allocator;
+const mu_io = std.Options.debug_io;
 
 const TypeHint = vi.TypeHint;
 
 const NatsHandler = struct {
-    nc: ?*nats.natsConnection = null,
+    nc: ?*nats.Client = null,
     ctx: ?*rtd.RtdContext = null,
 
     // topic_id -> subscription handle
-    subs: std.AutoHashMap(i32, *nats.natsSubscription) = std.AutoHashMap(i32, *nats.natsSubscription).init(allocator),
+    subs: std.AutoHashMap(i32, *nats.Subscription) = std.AutoHashMap(i32, *nats.Subscription).init(allocator),
     // topic_id -> latest payload (owned, empty slice = no value yet)
     values: std.AutoHashMap(i32, []const u8) = std.AutoHashMap(i32, []const u8).init(allocator),
     // topic_id -> type hint for value interpretation
@@ -33,14 +34,14 @@ const NatsHandler = struct {
     subject_map: std.StringHashMap(i32) = std.StringHashMap(i32).init(allocator),
     // topic_ids that are in window mode (value = subject for handle formatting)
     window_topics: std.AutoHashMap(i32, []const u8) = std.AutoHashMap(i32, []const u8).init(allocator),
-    mu: std.Thread.Mutex = .{},
+    mu: std.Io.Mutex = std.Io.Mutex.init,
     // Arena for utf16 conversions — reset once per RefreshData batch
     refresh_arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(std.heap.c_allocator),
 
     pub fn onStart(self: *NatsHandler, ctx: *rtd.RtdContext) void {
         rtd.debugLog("NATS onStart: entering", .{});
         self.ctx = ctx;
-        self.nc = @ptrCast(nats_conn.getConnection());
+        self.nc = nats_conn.getConnection();
         if (self.nc) |nc| {
             rtd.debugLog("NATS onStart: connected OK, nc={*}", .{nc});
         } else {
@@ -54,26 +55,15 @@ const NatsHandler = struct {
         const subject = entry.strings[0];
         const nc = self.nc orelse return;
 
-        const subject_z = allocator.dupeZ(u8, subject) catch return;
-        defer allocator.free(subject_z);
-
-        var sub: ?*nats.natsSubscription = null;
-        const status = nats.natsConnection_Subscribe(
-            &sub,
-            nc,
-            subject_z.ptr,
-            onMsg,
-            @ptrCast(self),
-        );
-        if (status != nats.NATS_OK) {
-            rtd.debugLog("NATS subscribe failed for '{s}': status={d}", .{ subject_z, status });
+        const sub = nc.subscribe(subject, nats.MsgHandler.init(NatsHandler, self)) catch |err| {
+            rtd.debugLog("NATS subscribe failed for '{s}': {s}", .{ subject, @errorName(err) });
             return;
-        }
+        };
 
-        self.mu.lock();
-        defer self.mu.unlock();
+        self.mu.lock(mu_io) catch {};
+        defer self.mu.unlock(mu_io);
 
-        if (sub) |s| self.subs.put(topic_id, s) catch {};
+        self.subs.put(topic_id, sub) catch {};
         self.values.put(topic_id, &.{}) catch {};
 
         // Check for window mode: second topic string starting with "win:"
@@ -97,12 +87,11 @@ const NatsHandler = struct {
     }
 
     pub fn onDisconnect(self: *NatsHandler, _: *rtd.RtdContext, topic_id: i32, _: usize) void {
-        self.mu.lock();
-        defer self.mu.unlock();
+        self.mu.lock(mu_io) catch {};
+        defer self.mu.unlock(mu_io);
 
         if (self.subs.fetchRemove(topic_id)) |kv| {
-            _ = nats.natsSubscription_Unsubscribe(kv.value);
-            nats.natsSubscription_Destroy(kv.value);
+            kv.value.deinit();
         }
 
         if (self.values.fetchRemove(topic_id)) |kv| {
@@ -136,8 +125,8 @@ const NatsHandler = struct {
     }
 
     pub fn onRefreshValue(self: *NatsHandler, _: *rtd.RtdContext, topic_id: i32) rtd.RtdValue {
-        self.mu.lock();
-        defer self.mu.unlock();
+        self.mu.lock(mu_io) catch {};
+        defer self.mu.unlock(mu_io);
 
         // Window mode: return handle string "subject#generation"
         if (self.window_topics.get(topic_id)) |subject| {
@@ -159,15 +148,14 @@ const NatsHandler = struct {
     pub fn onTerminate(self: *NatsHandler, _: *rtd.RtdContext) void {
         rtd.debugLog("NATS onTerminate: entering", .{});
 
-        self.mu.lock();
+        self.mu.lock(mu_io) catch {};
 
         // Destroy subscription handles
         rtd.debugLog("NATS onTerminate: destroying {d} subscriptions", .{self.subs.count()});
         var sit = self.subs.iterator();
         while (sit.next()) |entry| {
             rtd.debugLog("NATS onTerminate: destroying sub for topic_id={d}", .{entry.key_ptr.*});
-            _ = nats.natsSubscription_Unsubscribe(entry.value_ptr.*);
-            nats.natsSubscription_Destroy(entry.value_ptr.*);
+            entry.value_ptr.*.deinit();
         }
         self.subs.deinit();
 
@@ -203,38 +191,20 @@ const NatsHandler = struct {
         self.refresh_arena.deinit();
 
         self.nc = null;
-        self.mu.unlock();
+        self.mu.unlock(mu_io);
 
         // Close the shared connection
         nats_conn.close();
         rtd.debugLog("NATS onTerminate: done", .{});
     }
 
-    // nats.c message callback — called from nats.c's internal thread pool
-    fn onMsg(
-        _: ?*nats.natsConnection,
-        _: ?*nats.natsSubscription,
-        msg: ?*nats.natsMsg,
-        closure: ?*anyopaque,
-    ) callconv(.c) void {
-        const self: *NatsHandler = @ptrCast(@alignCast(closure orelse return));
-        const m = msg orelse return;
-        defer nats.natsMsg_Destroy(m);
+    pub fn onMessage(self: *NatsHandler, msg: *const nats.Message) void {
+        if (msg.data.len == 0) return;
+        const subject = msg.subject;
+        const copy = allocator.dupe(u8, msg.data) catch return;
 
-        const subject_ptr = nats.natsMsg_GetSubject(m) orelse return;
-        const data_ptr = nats.natsMsg_GetData(m);
-        const raw_data_len = nats.natsMsg_GetDataLength(m);
-
-        if (raw_data_len <= 0) return;
-        const data_len: usize = @intCast(raw_data_len);
-        if (data_ptr == null) return;
-
-        const subject = std.mem.span(subject_ptr);
-        const payload: [*]const u8 = @ptrCast(data_ptr.?);
-        const copy = allocator.dupe(u8, payload[0..data_len]) catch return;
-
-        self.mu.lock();
-        defer self.mu.unlock();
+        self.mu.lock(mu_io) catch {};
+        defer self.mu.unlock(mu_io);
 
         const topic_id = self.subject_map.get(subject) orelse {
             allocator.free(copy);

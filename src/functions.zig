@@ -4,7 +4,7 @@ const xl = xll.xl;
 const XLValue = xll.XLValue;
 const ExcelFunction = xll.ExcelFunction;
 const ParamMeta = xll.ParamMeta;
-const nats = @cImport(@cInclude("nats.h"));
+const nats = @import("nats");
 const nats_conn = @import("nats_conn.zig");
 const wb = @import("window_buffer.zig");
 
@@ -72,42 +72,24 @@ fn natsInfoFunc() !*xl.XLOPER12 {
         };
         return result;
     }
-    const conn: *nats.natsConnection = @ptrCast(conn_opaque.?);
-
-    // Gather stats
-    var stats: ?*nats.natsStatistics = null;
-    if (nats.natsStatistics_Create(&stats) != nats.NATS_OK) return error.StatsFailed;
-    defer nats.natsStatistics_Destroy(stats);
-
-    if (nats.natsConnection_GetStats(conn, stats) != nats.NATS_OK) return error.StatsFailed;
-
-    var in_msgs: u64 = 0;
-    var in_bytes: u64 = 0;
-    var out_msgs: u64 = 0;
-    var out_bytes: u64 = 0;
-    var reconnects: u64 = 0;
-    _ = nats.natsStatistics_GetCounts(stats, &in_msgs, &in_bytes, &out_msgs, &out_bytes, &reconnects);
-
-    // Gather connection info
-    var url_buf: [256]u8 = undefined;
-    var server_id_buf: [256]u8 = undefined;
-    _ = nats.natsConnection_GetConnectedUrl(conn, &url_buf, url_buf.len);
-    _ = nats.natsConnection_GetConnectedServerId(conn, &server_id_buf, server_id_buf.len);
-
-    const version = std.mem.span(nats.nats_GetVersion());
-    const url = std.mem.sliceTo(&url_buf, 0);
-    const server_id = std.mem.sliceTo(&server_id_buf, 0);
+    const conn = conn_opaque.?;
+    const stats = conn.stats();
+    const url = conn.connectedUrl() orelse nats_conn.currentUrl();
+    const server_id = conn.connectedServerId() orelse "";
+    const server_version = conn.connectedServerVersion() orelse "";
 
     // Build rows: [label, value] pairs
     const rows = [_][2]Cell{
-        .{ strCell("nats.c"), strCell(version) },
+        .{ strCell("nats.zig"), strCell(nats.version) },
         .{ strCell("url"), strCell(url) },
         .{ strCell("server_id"), strCell(server_id) },
-        .{ strCell("in_msgs"), numCell(@floatFromInt(in_msgs)) },
-        .{ strCell("in_bytes"), numCell(@floatFromInt(in_bytes)) },
-        .{ strCell("out_msgs"), numCell(@floatFromInt(out_msgs)) },
-        .{ strCell("out_bytes"), numCell(@floatFromInt(out_bytes)) },
-        .{ strCell("reconnects"), numCell(@floatFromInt(reconnects)) },
+        .{ strCell("server_version"), strCell(server_version) },
+        .{ strCell("in_msgs"), numCell(@floatFromInt(stats.msgs_in)) },
+        .{ strCell("in_bytes"), numCell(@floatFromInt(stats.bytes_in)) },
+        .{ strCell("out_msgs"), numCell(@floatFromInt(stats.msgs_out)) },
+        .{ strCell("out_bytes"), numCell(@floatFromInt(stats.bytes_out)) },
+        .{ strCell("reconnects"), numCell(@floatFromInt(stats.reconnects)) },
+        .{ strCell("connects"), numCell(@floatFromInt(stats.connects)) },
     };
 
     const num_rows = rows.len;
@@ -212,7 +194,7 @@ fn natsSubwinValsFunc(handle: []const u8) ![][]const f64 {
 }
 
 fn natsPubFunc(subject: []const u8, payload: xll.XLValue) ![]const u8 {
-    const conn: *nats.natsConnection = @ptrCast(nats_conn.getConnection() orelse return error.NotConnected);
+    const conn = nats_conn.getConnection() orelse return error.NotConnected;
 
     const payload_str = blk: {
         if (payload.is_str()) {
@@ -232,11 +214,7 @@ fn natsPubFunc(subject: []const u8, payload: xll.XLValue) ![]const u8 {
     };
     defer allocator.free(payload_str);
 
-    const subject_z = try allocator.dupeZ(u8, subject);
-    defer allocator.free(subject_z);
-
-    const status = nats.natsConnection_Publish(conn, subject_z.ptr, payload_str.ptr, @intCast(payload_str.len));
-    if (status != nats.NATS_OK) return error.PublishFailed;
+    conn.publish(subject, payload_str) catch return error.PublishFailed;
 
     const prefix = "PUB: ";
     const result = try allocator.alloc(u8, prefix.len + subject.len);

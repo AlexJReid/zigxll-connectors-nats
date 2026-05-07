@@ -1,12 +1,16 @@
 .{
     .name = .zigxll_connectors_nats,
-    .version = "1.0.2",
+    .version = "1.0.3",
     .fingerprint = 0xb6540fdceb81f5c9,
-    .minimum_zig_version = "0.15.1",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .xll = .{
-            .url = "https://github.com/alexjreid/zigxll/archive/refs/tags/v0.3.23.tar.gz",
-            .hash = "xll-0.3.23-rzwxcXPuGQBtvn-_PrbEVcR8mtflfZj9NogFRH7ZH7Yw",
+            .url = "https://github.com/alexjreid/zigxll/archive/refs/tags/v0.4.0.tar.gz",
+            .hash = "xll-0.4.0-rzwxccBFGgCIIwmkLUxsOSbxe_0d16yMRFzSbfNsSs08",
+        },
+        .nats = .{
+            .url = "git+https://github.com/nats-io/nats.zig.git#35e7358b3480025afd8b02005eec40666e7be657",
+            .hash = "nats-0.1.0-991asSaJHwDW4HKS48mXiDMmBrr_yAk1P3RNEW5cudKa",
         },
     },
     .paths = .{
