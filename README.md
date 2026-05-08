@@ -19,7 +19,7 @@ Subscribes to NATS subjects with `=NATS.SUB("subject")` to stream published mess
 ## Features
 
 - **Single small binary** `.xll` file. Just open it in Excel, or install.
-- **Built on [nats.zig](https://github.com/nats-io/nats.zig)** via the [AlexJReid fork](https://github.com/AlexJReid/nats.zig). No vendored C client and no OpenSSL install required.
+- **Built on [nats.zig](https://github.com/nats-io/nats.zig)** via the [AlexJReid fork](https://github.com/AlexJReid/nats.zig) of nats.zig
 - **Supports PUB snd SUB**, with more on the way.
 - **No .NET framework dependencies, no COM setup, just run it** The RTD server registers itself to `HKCU` on load, no admin rights needed.
 - **Custom Excel RTD wrapper functions** like `=NATS.SUB("prices.gbp")` so users never need to think about raw `=RTD(...)` syntax. You can create your own wrapper functions to your subjects, i.e. building a subject string based on multiple, documented parameters.

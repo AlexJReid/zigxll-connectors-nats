@@ -1,6 +1,6 @@
 .{
     .name = .zigxll_connectors_nats,
-    .version = "1.0.3",
+    .version = "1.0.4",
     .fingerprint = 0xb6540fdceb81f5c9,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
@@ -17,5 +17,6 @@
         "build.zig",
         "build.zig.zon",
         "src",
+        "vendor",
     },
 }
