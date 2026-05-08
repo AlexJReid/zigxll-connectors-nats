@@ -19,7 +19,7 @@ Subscribes to NATS subjects with `=NATS.SUB("subject")` to stream published mess
 ## Features
 
 - **Single small binary** `.xll` file. Just open it in Excel, or install.
-- **Built on official [nats.zig](https://github.com/nats-io/nats.zig)**. No vendored C client and no OpenSSL install required.
+- **Built on [nats.zig](https://github.com/nats-io/nats.zig)** via the [AlexJReid fork](https://github.com/AlexJReid/nats.zig). No vendored C client and no OpenSSL install required.
 - **Supports PUB snd SUB**, with more on the way.
 - **No .NET framework dependencies, no COM setup, just run it** The RTD server registers itself to `HKCU` on load, no admin rights needed.
 - **Custom Excel RTD wrapper functions** like `=NATS.SUB("prices.gbp")` so users never need to think about raw `=RTD(...)` syntax. You can create your own wrapper functions to your subjects, i.e. building a subject string based on multiple, documented parameters.
@@ -119,14 +119,10 @@ zig build --release=safe
 
 The XLL will be output to `zig-out/lib/zigxll-connectors-nats.xll`.
 
-`nats.zig` is vendored under [`vendor/nats.zig/`](vendor/nats.zig/) with local
-edits for Zig 0.16 Windows support: a few POSIX socket/sleep paths that don't
-compile for `x86_64-windows-msvc` are gated to non-Windows targets, and the
-io_task's read loop skips `WSAPoll` on Windows because `std.Io.Threaded` opens
-sockets as AFD handles (NT file handles), not Winsock `SOCKET`s — `WSAPoll`
-returns `WSAENOTSOCK` for them, so we let `reader.fillMore()` block instead.
-When upstream `nats.zig` adds proper Zig 0.16 Windows support we can drop the
-vendor dir and switch back to a fetched dependency.
+`nats.zig` is fetched from the [AlexJReid fork](https://github.com/AlexJReid/nats.zig),
+tagged `v0.1.0-alexjreid.1`, which carries the Zig 0.16 Windows support needed
+for the `x86_64-windows-msvc` XLL build. When those changes land upstream, this
+can switch back to a direct `nats-io/nats.zig` dependency.
 
 ## RTD Servers
 
@@ -209,12 +205,12 @@ Returns `#VALUE!` if not connected or publish fails.
 
 ## Architecture
 
-The XLL uses the official [nats.zig](https://github.com/nats-io/nats.zig) client. A shared NATS client is created lazily and reused by RTD subscriptions and `NATS.PUB`. Subscription callbacks store the latest value per topic and notify Excel to refresh.
+The XLL uses [nats.zig](https://github.com/nats-io/nats.zig), currently via the [AlexJReid fork](https://github.com/AlexJReid/nats.zig). A shared NATS client is created lazily and reused by RTD subscriptions and `NATS.PUB`. Subscription callbacks store the latest value per topic and notify Excel to refresh.
 
 Key implementation details:
 
 - **Arena allocator** for UTF-16 string conversions during Excel refresh cycles -reset once per `RefreshData` batch, zero malloc/free churn on the hot path
-- **Official Zig NATS client** with native TLS via Zig/std, credentials-file auth, token auth, username/password auth, and NKey seed-file auth
+- **Zig NATS client** with native TLS via Zig/std, credentials-file auth, token auth, username/password auth, and NKey seed-file auth
 
 ## Download
 

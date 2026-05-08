@@ -9,13 +9,13 @@
             .hash = "xll-0.4.0-rzwxccBFGgCIIwmkLUxsOSbxe_0d16yMRFzSbfNsSs08",
         },
         .nats = .{
-            .path = "vendor/nats.zig",
+            .url = "git+https://github.com/AlexJReid/nats.zig#v0.1.0-alexjreid.1",
+            .hash = "nats_alexjreid-0.1.0-alexjreid.1-LXpHQpuKHwChXVni6qNSMrOJOhozpzqHB5YWCrat-hmR",
         },
     },
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
-        "vendor",
     },
 }
